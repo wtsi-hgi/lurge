@@ -92,15 +92,20 @@ def findGroups(ldap_con, tmp_db):
     tmp_db.commit()
     print("Created table of Humgen Unix groups.")
 
-def processMpistat(tmp_db, mpi_file, volume):
+def processMpistat(tmp_db, mpi_file):
     """
     Processes a single mpistat output file and writes a table of results to
     tmp_db. Intended to be ran multiple times concurrently for multiple files.
 
     :param tmp_db: Database to write table of results to
-    :param mpi_file: File name of mpistat output file to process
-    :param volume: Name of the lustre volume this file represents (ie, scratch114)
+    :param mpi_file: File name of mpistat output file to process, named
+        'latest-[xyz].dat.gz'
     """
+    # gets rid of file extensions
+    file_name = mpi_file.split(".")[0]
+    # gets the last 3 characters of the file name, which should be the scratch
+    # volume number
+    volume = "scratch" + file_name[-3:]
 
     db_cursor = tmp_db.cursor()
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
@@ -201,10 +206,7 @@ def processMpistat(tmp_db, mpi_file, volume):
             lastModified, quota, consumption, archivedDirs))
 
     tmp_db.commit()
-
-    # returns volume string to make it easier to collect the names of generated
-    # SQLite tables
-    return volume
+    print("Processed data for {}.".format(volume))
 
 if __name__ == "__main__":
     # temporary in-memory SQLite database used to organise data
