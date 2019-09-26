@@ -302,8 +302,10 @@ def createTsvReport(tmp_db, tables, date):
             for row in db_cursor:
                 # row elements are ordered like the column names in the select
                 # statement
-                report_writer.writerow([row[0], row[1], row[2], row[3], row[4],
-                    row[5], row[6], row[7]])
+
+                # replace elements with no value with "-"
+                data = ["-" if x==None else x for x in row]
+                report_writer.writerow(data)
 
     print("{} created.".format(name))
 
