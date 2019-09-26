@@ -21,6 +21,11 @@ import report_config as config
 # [filename list] needs to be a list of mpistat output files named
 # "latest-[XYZ].dat.gz"
 
+# global (gasp!!) variable used to set the filename of the SQLite database
+# each process will access. Shouldn't really ever be changed, but it's here
+# for the sake of convenience.
+DATABASE_NAME = "_lurge_tmp_sqlite.db"
+
 def getSQLConnection():
     # connects to the MySQL server used to store the report data, change the
     # credentials here to point at your desired database
@@ -111,13 +116,13 @@ def findGroups(ldap_con, tmp_db):
 def processMpistat(mpi_file):
     """
     Processes a single mpistat output file and writes a table of results to
-    tmp_db. Intended to be ran multiple times concurrently for multiple files.
+    SQLite. Intended to be ran multiple times concurrently for multiple files.
 
-    :param tmp_db: Database to write table of results to
     :param mpi_file: File name of mpistat output file to process, named
         'latest-[xyz].dat.gz'
     """
-    tmp_db = sqlite3.connect('lurge_tmp_sqlite.db')
+    global DATABASE_NAME
+    tmp_db = sqlite3.connect(DATABASE_NAME)
     # gets rid of file extensions
     file_name = mpi_file.split(".")[0]
     # gets the last 3 characters of the file name, which should be the scratch
@@ -189,7 +194,6 @@ def processMpistat(mpi_file):
         # modification relative to when the mpistat file was produced
         # divided by 86400 (seconds in a day) to find day difference
         lastModified = round((mpistat_date_unix - lastModified_unix)/86400 , 1)
-
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
@@ -308,10 +312,12 @@ if __name__ == "__main__":
     # second argument is the date, all other arguments are file names
     date = sys.argv[1]
     mpistat_files = sys.argv[2:]
-    # temporary SQLite database used to organise data
-    print("Establishing LDAP connection...")
-    tmp_db = sqlite3.connect('lurge_tmp_sqlite.db')
 
+    # temporary SQLite database used to organise data
+    global DATABASE_NAME
+    tmp_db = sqlite3.connect(DATABASE_NAME)
+
+    print("Establishing LDAP connection...")
     ldap_con = getLDAPConnection()
 
     print("Collecting group information...")
@@ -324,20 +330,22 @@ if __name__ == "__main__":
 
     print("Starting mpistat processors...")
     # sorts file list alphabetically, so that the volumes are in the same order
-    # regardless of how the script is called. this is useful for having an
-    # ordered multiprocess output later.
+    # regardless of how the script arguments are given. This is useful for
+    # having an ordered multiprocess output later.
     mpistat_files.sort()
 
-    # distribute input pairs to processes running instances of processMpistat()
+    # distribute input files to processes running instances of processMpistat()
     tables = pool.map(processMpistat, mpistat_files)
     pool.close()
     pool.join()
-    # finds the last modified date of the mpistat file
+
+    # finds the last modified date of some mpistat file
     date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
         mpistat_files[0]).st_mtime) )
     # converts datetime object into ISO date string
     date = "{0:%Y-%m-%d}".format(date_unix)
-    # transfer content of separate SQLite tables into one MySQL table
+
+    # transfer content of SQLite tables into one MySQL table
     print("Establishing MySQL connection...")
     sql_db = getSQLConnection()
     print("Transferring report data to MySQL database...")
@@ -347,5 +355,5 @@ if __name__ == "__main__":
     createTsvReport(tmp_db, tables, date)
 
     print("Done.")
-    sql_con.close()
+    sql_db.close()
     tmp_db.close()
