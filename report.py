@@ -198,7 +198,7 @@ def processMpistat(tmp_db, mpi_file):
         # only check whether a volume is archived if it's smaller than 100MiB,
         # any larger than that and it's very likely to still be in use
         archivedDirs = None
-        if (volumeSize > 100*1024**2):
+        if (volumeSize < 100*1024**2):
             with os.scandir("/lustre/{}/humgen/projects/{}".format(volume,
                 groupName)) as items:
                 # scan the project directory for the ".imirrored" file
