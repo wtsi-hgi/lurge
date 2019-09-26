@@ -354,6 +354,8 @@ if __name__ == "__main__":
     print("Writing report data to .tsv file...")
     createTsvReport(tmp_db, tables, date)
 
-    print("Done.")
+    print("Cleaning up...")
     sql_db.close()
     tmp_db.close()
+    os.remove(DATABASE_NAME)
+    print("Done.")
