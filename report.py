@@ -47,7 +47,7 @@ def findGroups(ldap_con, tmp_db):
         ['cn', 'gidNumber', 'sangerProjectPI'])
 
     db_cursor = tmp_db.cursor()
-    # cn = groupName, sangerProjectPI['uid'] = PI user id
+    # cn = groupName, sangerProjectPI['uid'] = PI's user id
     db_cursor.execute('''CREATE TABLE group_table(gidNumber INTEGER PRIMARY KEY,
         groupName TEXT, PI TEXT)''')
     tmp_db.commit()
@@ -177,8 +177,8 @@ def processMpistat(tmp_db, mpi_file):
         lastModified = int( (mpistat_date_unix - lastModified_unix)/86400 )
 
         # lfs quota query is split into a list based on whitespace, and the
-        # fourth element is taken as the quota. it's in kilobytes though, so it
-        # is multiplied by 1024
+        # fourth element is taken as the quota. it's in kibibytes though, so it
+        # needs to be multiplied by 1024
         try:
             quota = subprocess.check_output(["lfs", "quota", "-gq", groupName,
                 "/lustre/{}".format(volume)], encoding="UTF-8").split()[3] * 1024
@@ -202,9 +202,10 @@ def processMpistat(tmp_db, mpi_file):
             with os.scandir("/lustre/{}/humgen/projects/{}".format(volume,
                 groupName)) as items:
                 # scan the project directory for the ".imirrored" file
-                if item.name == ".imirrored":
-                    archivedDirs = "/lustre/{}/humgen/projects/{}".format(
-                        volume, groupName)
+                for item in items:
+                    if item.name == ".imirrored":
+                        archivedDirs = "/lustre/{}/humgen/projects/{}".format(
+                            volume, groupName)
 
         # same volume that was passed to the function is used
         db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
@@ -285,7 +286,7 @@ def createTsvReport(tmp_db, tables, date):
                 report_writer.writerow([row[0], row[1], row[2], row[3], row[4],
                     row[5], row[6], row[7]])
 
-    print("{} complete.".format(name))
+    print("{} created.".format(name))
 
 if __name__ == "__main__":
     # ignore first argument (the name of the script)
@@ -331,5 +332,6 @@ if __name__ == "__main__":
     print("Writing report data to .tsv file...")
     createTsvReport(tmp_db, tables, date)
 
+    print("Done.")
     sql_con.close()
     tmp_db.close()
