@@ -20,7 +20,7 @@ while [[ ${days_ago} -lt ${max_days_ago} ]] && [[ ${success_flag} -eq 0 ]];
 # while (days_ago < max_days_ago) or (sucess_flag != 1)
 do
 	# Finds the date, formatted as YYYYMMDD, ${days_ago} days ago from today
-	MPI_DATE=$(date -d ${days_ago}' days ago' '+%Y%m%d')
+	MPI_DATE=$(date -d '${days_ago} days ago' '+%Y%m%d')
 	echo "Looking for reports at ${MPI_DATE}..."
 	# Finds most recent date for which there is a full set of mpistat outputs.
 	# Looks at number of files found, searching based on the filename date
@@ -51,8 +51,9 @@ do
 			echo "Created links to latest reports..."
 
 			echo "Starting report generator..."
+			declare DATE_FORMATTED=$(date -d '${days_ago} days ago' '+%Y-%m-%d')
 			# invokes the report generator, passing the filenames as arguments
-			${PY_ENV}python3 ${REPORT_DIR}report.py ${filenames[@]}
+			"${PY_ENV}"python3 "${REPORT_DIR}"report.py "${DATE_FORMATTED}" "${filenames[@]}"
 			success_flag=1
 		fi;
 	fi;

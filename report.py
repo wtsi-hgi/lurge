@@ -4,12 +4,15 @@ import re
 import datetime
 import csv
 import subprocess
+import multiprocessing
 import sqlite3
 import base
 import ldap
 import gzip
+import sys
 # importing report_config.py file, not a library
 import report_config as config
+
 
 def getSQLConnection():
     # connects to the MySQL server used to store the report data, change the
@@ -75,7 +78,7 @@ def findGroups(ldap_con, tmp_db):
         db_cursor.execute('''INSERT INTO group_table(gidNumber, groupName, PI)
             VALUES(?,?,?)''', (gidNumber, groupName, PIuid))
 
-    # write all prior INSERTs to table
+    # write all prior INSERTs to table in one transaction
     tmp_db.commit()
 
     # replaces uids in group_table with full surnames of the corresponding PI
@@ -141,10 +144,14 @@ def processMpistat(tmp_db, mpi_file):
             line = line.split()
 
             gid = line[3]
-            groups[gid]['volumeSize'] += line[1]
-            # only update the group's last edit time if it's more recent
-            if (line[5] > groups[gid]['lastModified']):
-                groups[gid]['lastModified'] = line[5]
+            try:
+                groups[gid]['volumeSize'] += line[1]
+                # only update the group's last edit time if it's more recent
+                if (line[5] > groups[gid]['lastModified']):
+                    groups[gid]['lastModified'] = line[5]
+            except KeyError:
+                # skip the line if the group wasn't found during the LDAP search
+                pass
 
             lines_processed += 1
 
@@ -155,8 +162,8 @@ def processMpistat(tmp_db, mpi_file):
         archivedDirs TEXT)'''.format(volume))
 
     # gets the Unix timestamp of when the mpistat file was created
-    mpistat_date_unix = int( subprocess.check_output(["stat", "-c", "%Y",
-        mpi_file], encoding="UTF-8") )
+    # int() truncates away the sub-second measurements
+    mpistat_date_unix = int(os.stat(mpi_file).st_mtime)
 
     for gid in groups:
         gidNumber = gid
@@ -202,24 +209,127 @@ def processMpistat(tmp_db, mpi_file):
         # same volume that was passed to the function is used
         db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
             volumeSize, volume, lastModified, quota, consumption, archivedDirs)
-            '''.format(volume), (gidNumber, groupName, PI, volumeSize, volume,
-            lastModified, quota, consumption, archivedDirs))
+            VALUES (?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
+            PI, volumeSize, volume, lastModified, quota, consumption,
+            archivedDirs))
 
     tmp_db.commit()
     print("Processed data for {}.".format(volume))
 
+    return volume
+
+def loadIntoMySQL(tmp_db, sql_db, tables, date):
+    """
+    Reads the contents of tables in tmp_db and writes them to a MySQL database.
+
+    :param tmp_db: SQLite database in which tables are stored
+    :param sql_db: MySQL database into which to write data
+    :param tables: List of table names to read
+    :param date: Date string to label the data (ie, "2019-09-20")
+    """
+    tmp_cursor = tmp_db.cursor()
+    sql_cursor = sql_db.cursor()
+
+    # iterates over each row in each SQLite table, and just moves the data over
+    # into a single MySQL table
+    for table in tables:
+        print("Inserting data for {}...".format(table))
+        tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
+            consumption, lastModified, archivedDirs FROM {}
+            ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
+        for row in tmp_cursor:
+            # row elements are ordered like the column names in the select,
+            # ie 'volume' is always row[0]
+            instruction = '''INSERT INTO lustre_usage (`Lustre Volume`,
+                `PI`, `Unix Group`, `Used (bytes)`, `Quota (bytes)`, `Consumption`,
+                `Last Modified (days)`, `Archived Directories`, `date`)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)'''
+            # creates single data tuple from existing row tuple and singleton
+            # date tuple, plain variables can't be concatenated to tuples
+            data = row + (date,)
+
+            sql_cursor.execute(instruction, data)
+
+    sql_db.commit()
+    print("Report data for {} loaded into MySQL.".format(date))
+
+def createTsvReport(tmp_db, tables, date):
+    """
+    Reads the contents of tables in tmp_db and writes them to a .tsv formatted
+    file.
+
+    :param tmp_db: SQLite database from which to fetch data
+    :param tables: List of table names to read
+    :param date: Date string of the data to be used (ie, "2019-09-20")
+    """
+    # sets filename to 'report-YYYYMMDD.tsv'
+    name = "report-{}.tsv".format(date.replace("-", ""))
+    db_cursor = tmp_db.cursor()
+
+    with open(name, "w", newline="") as reportfile:
+        # start a writer that will format the file as tab-separated
+        report_writer = csv.writer(reportfile, delimiter="\t",
+            quoting = csv.QUOTE_NONE)
+        # write column headers
+        report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
+            "Used (bytes)", "Quota (bytes)", "Consumption",
+            "Last Modified (days)", "Archived Directories"])
+
+        for table in tables:
+            print("Inserting data for {}...".format(table))
+            db_cursor.execute('''SELECT volume, PI, groupName, volumeSize,
+                quota, consumption, lastModified, archivedDirs FROM {}
+                ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
+            for row in db_cursor:
+                # row elements are ordered like the column names in the select
+                report_writer.writerow([row[0], row[1], row[2], row[3], row[4],
+                    row[5], row[6], row[7]])
+
+    print("{} complete.".format(name))
+
 if __name__ == "__main__":
+    # ignore first argument (the name of the script)
+    # second argument is the date, all other arguments are file names
+    date = sys.argv[1]
+    mpistat_files = sys.argv[2:]
     # temporary in-memory SQLite database used to organise data
-    print("Establishing LDAP and SQL connections...")
+    print("Establishing LDAP connection...")
     tmp_db = sqlite3.connect(':memory:')
 
     ldap_con = getLDAPConnection()
-    sql_con = getSQLConnection()
 
     print("Collecting group information...")
     findGroups(ldap_con, tmp_db)
 
+    # creates a process pool which will concurrently execute 4 processes
+    # NOTE: If resources permit, change this to the number of mpistat files
+    # that are going to be processed
+    pool = multiprocessing.Pool(processes=4)
 
+    print("Starting mpistat processors...")
+    # sorts file list alphabetically, so that the volumes are in the same order
+    # regardless of how the script is called. this is useful for having an
+    # ordered multiprocess output later.
+    mpistat_files.sort()
+    # creates list of pairs, [tmp_db, "latest-YYYYMMDD.dat.gz"]
+    work = [[tmp_db, mpi_file] for mpi_file in mpistat_files]
+
+    # distribute input pairs to processes running instances of processMpistat()
+    tables = pool.map(processMpistat, work)
+
+    # finds the last modified date of the mpistat file
+    date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
+        mpistat_files[0].st_mtime)) )
+    # converts datetime object into ISO date string
+    date = "{0:%Y-%m-%d}".format(date_unix)
+    # transfer content of separate SQLite tables into one MySQL table
+    print("Establishing MySQL connection...")
+    sql_db = getSQLConnection())
+    print("Transferring report data to MySQL database...")
+    loadIntoMySQL(tmp_db, sql_db, tables, date)
+
+    print("Writing report data to .tsv file...")
+    createTsvReport(tmp_db, tables, date)
 
     sql_con.close()
     tmp_db.close()
