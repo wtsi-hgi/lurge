@@ -6,20 +6,33 @@ import csv
 import subprocess
 import multiprocessing
 import sqlite3
-import base
+import base64
 import ldap
 import gzip
 import sys
 # importing report_config.py file, not a library
 import report_config as config
 
+# This script should be executed by reportmanager.sh. If you want to run it
+# directly, you need to execute it like so:
+# python3 report.py [date] [filename list]
+# This would probably be pretty inconvenient, because [date] needs to be an
+# ISO date string (YYYY-MM-DD) of the most recent mpistat output set, and
+# [filename list] needs to be a list of mpistat output files named
+# "latest-[XYZ].dat.gz"
 
 def getSQLConnection():
     # connects to the MySQL server used to store the report data, change the
     # credentials here to point at your desired database
+    if (config.PORT == None):
+        port = 3306 # if port is not set, set it to default
+    else:
+        port = config.PORT
+
     db_con = mysql.connector.connect(
         host=config.HOST,
         database=config.DATABASE,
+        port = port,
         user=config.USER,
         passwd=config.PASSWORD
     )
@@ -95,7 +108,7 @@ def findGroups(ldap_con, tmp_db):
     tmp_db.commit()
     print("Created table of Humgen Unix groups.")
 
-def processMpistat(tmp_db, mpi_file):
+def processMpistat(mpi_file):
     """
     Processes a single mpistat output file and writes a table of results to
     tmp_db. Intended to be ran multiple times concurrently for multiple files.
@@ -104,6 +117,7 @@ def processMpistat(tmp_db, mpi_file):
     :param mpi_file: File name of mpistat output file to process, named
         'latest-[xyz].dat.gz'
     """
+    tmp_db = sqlite3.connect('lurge_tmp_sqlite.db')
     # gets rid of file extensions
     file_name = mpi_file.split(".")[0]
     # gets the last 3 characters of the file name, which should be the scratch
@@ -114,10 +128,10 @@ def processMpistat(tmp_db, mpi_file):
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
 
     groups = {}
-    for row in cursor:
+    for row in db_cursor:
         # rearranging into a more usable format, since each row is in the
         # form (gid, "groupname", "PIname")
-        gid, groupname, PIname = row
+        gid, groupName, PIname = row
 
         # lastmodified is in Unix time and will be converted to "days since
         # last modification" later
@@ -174,7 +188,8 @@ def processMpistat(tmp_db, mpi_file):
         # mpistat_date_unix - lastModified_unix is the seconds since last
         # modification relative to when the mpistat file was produced
         # divided by 86400 (seconds in a day) to find day difference
-        lastModified = int( (mpistat_date_unix - lastModified_unix)/86400 )
+        lastModified = round((mpistat_date_unix - lastModified_unix)/86400 , 1)
+
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
@@ -207,7 +222,6 @@ def processMpistat(tmp_db, mpi_file):
                         archivedDirs = "/lustre/{}/humgen/projects/{}".format(
                             volume, groupName)
 
-        # same volume that was passed to the function is used
         db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
             volumeSize, volume, lastModified, quota, consumption, archivedDirs)
             VALUES (?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
@@ -283,6 +297,7 @@ def createTsvReport(tmp_db, tables, date):
                 ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
             for row in db_cursor:
                 # row elements are ordered like the column names in the select
+                # statement
                 report_writer.writerow([row[0], row[1], row[2], row[3], row[4],
                     row[5], row[6], row[7]])
 
@@ -293,9 +308,9 @@ if __name__ == "__main__":
     # second argument is the date, all other arguments are file names
     date = sys.argv[1]
     mpistat_files = sys.argv[2:]
-    # temporary in-memory SQLite database used to organise data
+    # temporary SQLite database used to organise data
     print("Establishing LDAP connection...")
-    tmp_db = sqlite3.connect(':memory:')
+    tmp_db = sqlite3.connect('lurge_tmp_sqlite.db')
 
     ldap_con = getLDAPConnection()
 
@@ -312,20 +327,19 @@ if __name__ == "__main__":
     # regardless of how the script is called. this is useful for having an
     # ordered multiprocess output later.
     mpistat_files.sort()
-    # creates list of pairs, [tmp_db, "latest-YYYYMMDD.dat.gz"]
-    work = [[tmp_db, mpi_file] for mpi_file in mpistat_files]
 
     # distribute input pairs to processes running instances of processMpistat()
-    tables = pool.map(processMpistat, work)
-
+    tables = pool.map(processMpistat, mpistat_files)
+    pool.close()
+    pool.join()
     # finds the last modified date of the mpistat file
     date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
-        mpistat_files[0].st_mtime)) )
+        mpistat_files[0]).st_mtime) )
     # converts datetime object into ISO date string
     date = "{0:%Y-%m-%d}".format(date_unix)
     # transfer content of separate SQLite tables into one MySQL table
     print("Establishing MySQL connection...")
-    sql_db = getSQLConnection())
+    sql_db = getSQLConnection()
     print("Transferring report data to MySQL database...")
     loadIntoMySQL(tmp_db, sql_db, tables, date)
 
