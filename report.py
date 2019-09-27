@@ -339,7 +339,6 @@ if __name__ == "__main__":
         exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
 
     # temporary SQLite database used to organise data
-    global DATABASE_NAME
     tmp_db = sqlite3.connect(DATABASE_NAME)
     print("Establishing MySQL connection...")
     sql_db = getSQLConnection()
