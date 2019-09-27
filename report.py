@@ -16,15 +16,30 @@ import report_config as config
 # This script should be executed by reportmanager.sh. If you want to run it
 # directly, you need to execute it like so:
 # python3 report.py [date] [filename list]
-# This would probably be pretty inconvenient, because [date] needs to be an
-# ISO date string (YYYY-MM-DD) of the most recent mpistat output set, and
-# [filename list] needs to be a list of mpistat output files named
-# "latest-[XYZ].dat.gz"
+# [date] needs to be an ISO date string (ie, "2019-09-21")
+# [filename list] needs to be a list of mpistat output files
+# (ie, latest-119.dat.gz latest-118.dat.gz etc)
 
 # global (gasp!!) variable used to set the filename of the SQLite database
 # each process will access. Shouldn't really ever be changed, but it's here
 # for the sake of convenience.
 DATABASE_NAME = "_lurge_tmp_sqlite.db"
+
+def checkReportDate(sql_db, date):
+    """
+    Checks the dates in the MySQL database, and stops the program if date 'date'
+    is already recorded.
+
+    :param sql_db: MySQL connection to check for reports
+    :param date: The date of the report to be produced
+    """
+    sql_cursor = sql_db.cursor()
+    sql_cursor.execute("""SELECT DISTINCT `date` FROM lustre_usage""")
+
+    for result in sql_cursor:
+        if (date == result):
+            exit("Report for date {} already found in MySQL database! \
+                Exiting.".format(date))
 
 def getSQLConnection():
     # connects to the MySQL server used to store the report data, change the
@@ -118,19 +133,23 @@ def processMpistat(mpi_file):
     Processes a single mpistat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
 
-    :param mpi_file: File name of mpistat output file to process, named
-        'latest-[xyz].dat.gz'
+    :param mpi_file: File name of mpistat output file to process
     """
     global DATABASE_NAME
     tmp_db = sqlite3.connect(DATABASE_NAME)
-    # gets rid of file extensions
-    file_name = mpi_file.split(".")[0]
-    # gets the last 3 characters of the file name, which should be the scratch
-    # volume number
-    volume = "scratch" + file_name[-3:]
 
     db_cursor = tmp_db.cursor()
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
+
+    # reads first line of the mpistat file to establish the scratch volume
+    with gzip.open(mpi_file, 'rt') as mpi_text:
+        # each line is a whitespace separated list of fields, the first element
+        # is the directory
+        b64_directory = mpi_text.readline().split()[0]
+        # b64_directory is a base64 encoded string '/lustre/scratch[XYZ]'
+        directory = base64.b64decode(b64_directory).decode("UTF-8")
+        # gets the last element of the directory, ie "scratch[XYZ]"
+        volume = directory.split("/")[-1]
 
     groups = {}
     for row in db_cursor:
@@ -315,9 +334,17 @@ if __name__ == "__main__":
     date = sys.argv[1]
     mpistat_files = sys.argv[2:]
 
+    # checks if 'date' is formatted correctly
+    if re.search("\d\d\d\d-\d\d-\d\d", date) is None:
+        exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
+
     # temporary SQLite database used to organise data
     global DATABASE_NAME
     tmp_db = sqlite3.connect(DATABASE_NAME)
+    print("Establishing MySQL connection...")
+    sql_db = getSQLConnection()
+
+    checkReportDate(sql_db, date)
 
     print("Establishing LDAP connection...")
     ldap_con = getLDAPConnection()
@@ -348,8 +375,6 @@ if __name__ == "__main__":
     date = "{0:%Y-%m-%d}".format(date_unix)
 
     # transfer content of SQLite tables into one MySQL table
-    print("Establishing MySQL connection...")
-    sql_db = getSQLConnection()
     print("Transferring report data to MySQL database...")
     loadIntoMySQL(tmp_db, sql_db, tables, date)
 
@@ -359,5 +384,6 @@ if __name__ == "__main__":
     print("Cleaning up...")
     sql_db.close()
     tmp_db.close()
+    # delete the on-disk SQLite database file
     os.remove(DATABASE_NAME)
     print("Done.")
