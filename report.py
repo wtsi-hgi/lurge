@@ -173,7 +173,7 @@ def processMpistat(mpi_file):
 
         # lastmodified is in Unix time and will be converted to "days since
         # last modification" later
-        groups[gid] = {'groupName':groupName, 'PIname':PIname, 'volumeSize':0,
+        groups[str(gid)] = {'groupName':groupName, 'PIname':PIname, 'volumeSize':0,
             'lastModified':0, 'volume':volume, 'isHumgen':True}
 
     # lazily reads the mpistat file without unzipping the whole thing first
@@ -218,11 +218,15 @@ def processMpistat(mpi_file):
                 ldap_con = getLDAPConnection()
                 result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                     ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
-
-                groupName = result[1]['cn'][0].decode('UTF-8')
-                groups[gid] = {'groupName':groupName, 'PIname':None,
-                    'volumeSize':int(line[1]), 'lastModified':int(line[5]),
-                    'volume':volume, 'isHumgen':False}
+                try:
+                    groupName = result[0][1]['cn'][0].decode('UTF-8')
+                    groups[gid] = {'groupName':groupName, 'PIname':None,
+                        'volumeSize':int(line[1]), 'lastModified':int(line[5]),
+                        'volume':volume, 'isHumgen':False}
+                except IndexError:
+                    # this happens if a LDAP returns an empty result
+                    # the group name is not known, so the entire line is ignored
+                    pass
 
             lines_processed += 1
 
@@ -261,9 +265,14 @@ def processMpistat(mpi_file):
 
         TEBI = 1024**4 # bytes in a tebibyte
         if quota is not None:
-            consumption = "{} TiB of {} TiB ({}%)".format(
-                round(volumeSize/TEBI, 1), round(quota/TEBI, 1),
-                round(volumeSize/quota * 100, 1))
+            try:
+                consumption = "{} TiB of {} TiB ({}%)".format(
+                    round(volumeSize/TEBI, 1), round(quota/TEBI, 1),
+                    round(volumeSize/quota * 100, 1))
+            except ZeroDivisionError:
+                # this happens sometimes, when quota is 0
+                consumption = "{} TiB of 0 bytes (Inf%)".format(
+                    round(volumeSize/TEBI, 1))
         else:
             consumption = "{} TiB".format(round(volumeSize/TEBI, 1))
 
@@ -284,12 +293,15 @@ def processMpistat(mpi_file):
                         groupName)
                 except FileNotFoundError:
                     pass
-
-        db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
-            volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
-            VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
-            PI, volumeSize, volume, lastModified, quota, consumption,
-            archivedDirs, isHumgen))
+        if (volumeSize == 0 and lastModified_unix == 0):
+            # not a useful entry, ignore it
+            pass
+        else:
+            db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
+                volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
+                VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
+                PI, volumeSize, volume, lastModified, quota, consumption,
+                archivedDirs, isHumgen))
 
     tmp_db.commit()
     print("Processed data for {}.".format(volume))

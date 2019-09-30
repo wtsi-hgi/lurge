@@ -4,7 +4,7 @@
 declare MPISTAT_DIR="/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
 # where the reports are generated, should usually also be current working dir
 declare REPORT_DIR="/lustre/scratch115/teams/hgi/lustre-usage/"
-declare PY_ENV="/lustre/scratch115/teams/hgi/lustre-usage/lurge_env/bin/"
+declare PY_ENV="/lustre/scratch115/teams/hgi/lustre-usage/.lurge_env/bin/"
 # how many scratchXYZ volumes there are (that mpistat creates output for)
 declare SCRATCH_COUNT=6
 # how many days back the script will look for sets
@@ -44,7 +44,7 @@ do
 
 			for volume in ${volumes[@]};
 			do
-				ln -s "${MPISTAT_DIR}${MPI_DATE}_${volume}.dat.gz" "${REPORT_DIR}latest-${volume}.dat.gz"
+				ln -fs "${MPISTAT_DIR}${MPI_DATE}_${volume}.dat.gz" "${REPORT_DIR}latest-${volume}.dat.gz"
 				# iteratively extend an array of file names
 				filenames=("${filenames[@]}" "latest-${volume}.dat.gz")
 			done
