@@ -215,18 +215,9 @@ def processMpistat(mpi_file):
                 # after finding out which group it is
                 # A new LDAP connection is opened every time because it times
                 # out pretty quickly
-                ldap_con = getLDAPConnection()
-                result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                    ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
-                try:
-                    groupName = result[0][1]['cn'][0].decode('UTF-8')
-                    groups[gid] = {'groupName':groupName, 'PIname':None,
-                        'volumeSize':int(line[1]), 'lastModified':int(line[5]),
-                        'volume':volume, 'isHumgen':False}
-                except IndexError:
-                    # this happens if a LDAP returns an empty result
-                    # the group name is not known, so the entire line is ignored
-                    pass
+                groups[gid] = {'groupName':None, 'PIname':None,
+                    'volumeSize':int(line[1]), 'lastModified':int(line[5]),
+                    'volume':volume, 'isHumgen':False}
 
             lines_processed += 1
 
@@ -239,10 +230,17 @@ def processMpistat(mpi_file):
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
     mpistat_date_unix = int(os.stat(mpi_file).st_mtime)
-
+    ldap_con = getLDAPConnection()
     for gid in groups:
         gidNumber = gid
         groupName = groups[gid]['groupName']
+
+        # updates the group names for groups discovered during mpistat crawl
+        if (groupName == None):
+            result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+                ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+            groupName = result[0][1]['cn'][0].decode('UTF-8')
+
         PI = groups[gid]['PIname']
         volumeSize = groups[gid]['volumeSize']
         lastModified_unix = groups[gid]['lastModified']
