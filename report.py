@@ -128,6 +128,20 @@ def findGroups(ldap_con, tmp_db):
     tmp_db.commit()
     print("Created table of Humgen Unix groups.")
 
+def scanDirectory(directory):
+    """
+    processMpistat helper function. Scans 'directory' for .imirrored, and returns
+    the directory if it was found and None otherwise.
+
+    :param directory: Directory to scan
+    """
+    with os.scandir(directory) as items:
+        for item in items:
+            if item.name == ".imirrored":
+                return directory
+
+    return None
+
 def processMpistat(mpi_file):
     """
     Processes a single mpistat output file and writes a table of results to
@@ -160,12 +174,21 @@ def processMpistat(mpi_file):
         # lastmodified is in Unix time and will be converted to "days since
         # last modification" later
         groups[gid] = {'groupName':groupName, 'PIname':PIname, 'volumeSize':0,
-            'lastModified':0, 'volume':volume}
+            'lastModified':0, 'volume':volume, 'isHumgen':True}
 
     # lazily reads the mpistat file without unzipping the whole thing first
     starttime = datetime.datetime.now()
     lines_processed = 0
     print("Opening {} for reading...".format(mpi_file))
+    # directories with group directories to scan for .imirrored
+    group_directories = {
+        'scratch114':["/lustre/scratch114/teams/", "/lustre/scratch114/project/"],
+        'scratch115':["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
+        'scratch118':["/lustre/scratch118/humgen/old-team-data/",
+            "/lustre/scratch118/humgen/hgi/projects/"],
+        'scratch119':["/lustre/scratch119/humgen/teams",
+            "/lustre/scratch119/humgen/projects/"]
+        }
     with gzip.open(mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
         # fields:
@@ -174,8 +197,8 @@ def processMpistat(mpi_file):
         # directory or link), inode number, number of links, device id
         for line in mpi_text:
 
-            # print out progress report every ~60 seconds
-            if (datetime.datetime.now() - starttime).seconds > 60:
+            # print out progress report every ~30 seconds
+            if (datetime.datetime.now() - starttime).seconds > 30:
                 starttime = datetime.datetime.now()
                 print("{} files processed for {}".format(lines_processed, volume))
 
@@ -183,13 +206,23 @@ def processMpistat(mpi_file):
 
             gid = line[3]
             try:
-                groups[gid]['volumeSize'] += line[1]
+                groups[gid]['volumeSize'] += int(line[1])
                 # only update the group's last edit time if it's more recent
-                if (line[5] > groups[gid]['lastModified']):
-                    groups[gid]['lastModified'] = line[5]
+                if (int(line[5]) > groups[gid]['lastModified']):
+                    groups[gid]['lastModified'] = int(line[5])
             except KeyError:
-                # skip the line if the group wasn't found during the LDAP search
-                pass
+                # the first time the group appears, add it to the dictionary
+                # after finding out which group it is
+                # A new LDAP connection is opened every time because it times
+                # out pretty quickly
+                ldap_con = getLDAPConnection()
+                result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+                    ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+
+                groupName = result[1]['cn'][0].decode('UTF-8')
+                groups[gid] = {'groupName':groupName, 'PIname':None,
+                    'volumeSize':int(line[1]), 'lastModified':int(line[5]),
+                    'volume':volume, 'isHumgen':False}
 
             lines_processed += 1
 
@@ -197,7 +230,7 @@ def processMpistat(mpi_file):
     db_cursor.execute('''CREATE TABLE {} (gidNumber INTEGER PRIMARY KEY,
         groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
         lastModified INTEGER, quota INTEGER, consumption TEXT,
-        archivedDirs TEXT)'''.format(volume))
+        archivedDirs TEXT, isHumgen INTEGER)'''.format(volume))
 
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
@@ -209,6 +242,7 @@ def processMpistat(mpi_file):
         PI = groups[gid]['PIname']
         volumeSize = groups[gid]['volumeSize']
         lastModified_unix = groups[gid]['lastModified']
+        isHumgen = groups[gid]['isHumgen']
         # mpistat_date_unix - lastModified_unix is the seconds since last
         # modification relative to when the mpistat file was produced
         # divided by 86400 (seconds in a day) to find day difference
@@ -218,8 +252,8 @@ def processMpistat(mpi_file):
         # fourth element is taken as the quota. it's in kibibytes though, so it
         # needs to be multiplied by 1024
         try:
-            quota = subprocess.check_output(["lfs", "quota", "-gq", groupName,
-                "/lustre/{}".format(volume)], encoding="UTF-8").split()[3] * 1024
+            quota = int(subprocess.check_output(["lfs", "quota", "-gq", groupName,
+                "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
         except subprocess.CalledProcessError:
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error
@@ -233,23 +267,29 @@ def processMpistat(mpi_file):
         else:
             consumption = "{} TiB".format(round(volumeSize/TEBI, 1))
 
+        archivedDirs = None
         # only check whether a volume is archived if it's smaller than 100MiB,
         # any larger than that and it's very likely to still be in use
-        archivedDirs = None
         if (volumeSize < 100*1024**2):
-            with os.scandir("/lustre/{}/humgen/projects/{}".format(volume,
-                groupName)) as items:
-                # scan the project directory for the ".imirrored" file
-                for item in items:
-                    if item.name == ".imirrored":
-                        archivedDirs = "/lustre/{}/humgen/projects/{}".format(
-                            volume, groupName)
+            try:
+                archivedDirs = scanDirectory(group_directories[volume][0] +
+                    groupName)
+            except FileNotFoundError:
+                pass
+
+            # only test the next directory if .imirrored wasn't already found
+            if archivedDirs is None:
+                try:
+                    archivedDirs = scanDirectory(group_directories[volume][0] +
+                        groupName)
+                except FileNotFoundError:
+                    pass
 
         db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
-            volumeSize, volume, lastModified, quota, consumption, archivedDirs)
-            VALUES (?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
+            volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
+            VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
             PI, volumeSize, volume, lastModified, quota, consumption,
-            archivedDirs))
+            archivedDirs, isHumgen))
 
     tmp_db.commit()
     print("Processed data for {}.".format(volume))
@@ -273,15 +313,15 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
     for table in tables:
         print("Inserting data for {}...".format(table))
         tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
-            consumption, lastModified, archivedDirs FROM {}
+            consumption, lastModified, archivedDirs, isHumgen FROM {}
             ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
         for row in tmp_cursor:
             # row elements are ordered like the column names in the select,
             # ie 'volume' is always row[0]
             instruction = '''INSERT INTO lustre_usage (`Lustre Volume`,
                 `PI`, `Unix Group`, `Used (bytes)`, `Quota (bytes)`, `Consumption`,
-                `Last Modified (days)`, `Archived Directories`, `date`)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)'''
+                `Last Modified (days)`, `Archived Directories`, `IsHumgen`, `date`)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
             # creates single data tuple from existing row tuple and singleton
             # date tuple, plain variables can't be concatenated to tuples
             data = row + (date,)
@@ -311,12 +351,12 @@ def createTsvReport(tmp_db, tables, date):
         # write column headers
         report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
             "Used (bytes)", "Quota (bytes)", "Consumption",
-            "Last Modified (days)", "Archived Directories"])
+            "Last Modified (days)", "Archived Directories", "Is Humgen?"])
 
         for table in tables:
             print("Inserting data for {}...".format(table))
             db_cursor.execute('''SELECT volume, PI, groupName, volumeSize,
-                quota, consumption, lastModified, archivedDirs FROM {}
+                quota, consumption, lastModified, archivedDirs, isHumgen FROM {}
                 ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
             for row in db_cursor:
                 # row elements are ordered like the column names in the select
@@ -324,6 +364,12 @@ def createTsvReport(tmp_db, tables, date):
 
                 # replace elements with no value with "-"
                 data = ["-" if x==None else x for x in row]
+                # replace SQLite 1/0 Booleans with True/False
+                if data[-1] == 0:
+                    data[-1] = False
+                else:
+                    data[-1] = True
+
                 report_writer.writerow(data)
 
     print("{} created.".format(name))

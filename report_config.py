@@ -1,5 +1,5 @@
-HOST=""
+HOST="localhost"
 PORT=None   # optional
-DATABASE=""
-USER=""
-PASSWORD=""
+DATABASE="lustre_usage"
+USER="pytest"
+PASSWORD="pytest"
