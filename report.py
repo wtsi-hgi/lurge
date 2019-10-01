@@ -200,7 +200,8 @@ def processMpistat(mpi_file):
             # print out progress report every ~30 seconds
             if (datetime.datetime.now() - starttime).seconds > 30:
                 starttime = datetime.datetime.now()
-                print("{} files processed for {}".format(lines_processed, volume))
+                print("{:%H:%M:%S}: {} records processed for {}".format(
+                    starttime, lines_processed, volume))
 
             line = line.split()
 
@@ -209,7 +210,11 @@ def processMpistat(mpi_file):
                 groups[gid]['volumeSize'] += int(line[1])
                 # only update the group's last edit time if it's more recent
                 if (int(line[5]) > groups[gid]['lastModified']):
-                    groups[gid]['lastModified'] = int(line[5])
+                    # make sure the timestamp isn't in the future
+                    now = datetime.datetime.now()
+                    now_unix = int( datetime.datetime.timestamp(now) )
+                    if(now_unix > int(line[5])):
+                        groups[gid]['lastModified'] = int(line[5])
             except KeyError:
                 # the first time the group appears, add it to the dictionary
                 # its name will be found later
@@ -252,9 +257,6 @@ def processMpistat(mpi_file):
         # modification relative to when the mpistat file was produced
         # divided by 86400 (seconds in a day) to find day difference
         lastModified = round((mpistat_date_unix - lastModified_unix)/86400 , 1)
-
-        if(lastModified < 0):
-            lastModified = 0
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
