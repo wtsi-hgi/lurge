@@ -212,9 +212,7 @@ def processMpistat(mpi_file):
                     groups[gid]['lastModified'] = int(line[5])
             except KeyError:
                 # the first time the group appears, add it to the dictionary
-                # after finding out which group it is
-                # A new LDAP connection is opened every time because it times
-                # out pretty quickly
+                # its name will be found later
                 groups[gid] = {'groupName':None, 'PIname':None,
                     'volumeSize':int(line[1]), 'lastModified':int(line[5]),
                     'volume':volume, 'isHumgen':False}
@@ -239,7 +237,12 @@ def processMpistat(mpi_file):
         if (groupName == None):
             result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                 ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
-            groupName = result[0][1]['cn'][0].decode('UTF-8')
+            try:
+                groupName = result[0][1]['cn'][0].decode('UTF-8')
+            except IndexError:
+                # nothing found in LDAP for this group id, skip the rest of
+                # this loop
+                continue
 
         PI = groups[gid]['PIname']
         volumeSize = groups[gid]['volumeSize']
@@ -249,6 +252,9 @@ def processMpistat(mpi_file):
         # modification relative to when the mpistat file was produced
         # divided by 86400 (seconds in a day) to find day difference
         lastModified = round((mpistat_date_unix - lastModified_unix)/86400 , 1)
+
+        if(lastModified < 0):
+            lastModified = 0
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
@@ -287,7 +293,7 @@ def processMpistat(mpi_file):
             # only test the next directory if .imirrored wasn't already found
             if archivedDirs is None:
                 try:
-                    archivedDirs = scanDirectory(group_directories[volume][0] +
+                    archivedDirs = scanDirectory(group_directories[volume][1] +
                         groupName)
                 except FileNotFoundError:
                     pass
