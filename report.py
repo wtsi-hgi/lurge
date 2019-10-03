@@ -24,7 +24,9 @@ import report_config as config
 # each process will access. Shouldn't really ever be changed, but it's here
 # for the sake of convenience.
 DATABASE_NAME = "_lurge_tmp_sqlite.db"
-
+# another global for the report directory where the lastest mpistat output file
+# is and where the report file will be placed
+REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 def checkReportDate(sql_db, date):
     """
     Checks the dates in the MySQL database, and stops the program if date 'date'
@@ -38,6 +40,8 @@ def checkReportDate(sql_db, date):
 
     for result in sql_cursor:
         if (date == result):
+            global DATABASE_NAME
+            os.remove(DATABASE_NAME)
             exit("Report for date {} already found in MySQL database! \
                 Exiting.".format(date))
 
@@ -155,8 +159,9 @@ def processMpistat(mpi_file):
     db_cursor = tmp_db.cursor()
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
 
+    global REPORT_DIR
     # reads first line of the mpistat file to establish the scratch volume
-    with gzip.open(mpi_file, 'rt') as mpi_text:
+    with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
         # each line is a whitespace separated list of fields, the first element
         # is the directory
         b64_directory = mpi_text.readline().split()[0]
@@ -189,7 +194,7 @@ def processMpistat(mpi_file):
         'scratch119':["/lustre/scratch119/humgen/teams",
             "/lustre/scratch119/humgen/projects/"]
         }
-    with gzip.open(mpi_file, 'rt') as mpi_text:
+    with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
         # fields:
         # base64 encoded path, file size, owner uid, owner gid, last access time,
@@ -232,7 +237,7 @@ def processMpistat(mpi_file):
 
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
-    mpistat_date_unix = int(os.stat(mpi_file).st_mtime)
+    mpistat_date_unix = int(os.stat(REPORT_DIR+mpi_file).st_mtime)
     ldap_con = getLDAPConnection()
     for gid in groups:
         gidNumber = gid
@@ -277,7 +282,7 @@ def processMpistat(mpi_file):
                     round(volumeSize/quota * 100, 1))
             except ZeroDivisionError:
                 # this happens sometimes, when quota is 0
-                consumption = "{} TiB of 0 bytes (Inf%)".format(
+                consumption = "{} TiB (Unlimited)".format(
                     round(volumeSize/TEBI, 1))
         else:
             consumption = "{} TiB".format(round(volumeSize/TEBI, 1))
@@ -308,8 +313,8 @@ def processMpistat(mpi_file):
                 VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
                 PI, volumeSize, volume, lastModified, quota, consumption,
                 archivedDirs, isHumgen))
+            tmp_db.commit()
 
-    tmp_db.commit()
     print("Processed data for {}.".format(volume))
 
     return volume
@@ -362,7 +367,8 @@ def createTsvReport(tmp_db, tables, date):
     name = "report-{}.tsv".format(date.replace("-", ""))
     db_cursor = tmp_db.cursor()
 
-    with open(name, "w", newline="") as reportfile:
+    global REPORT_DIR
+    with open(REPORT_DIR+name, "w", newline="") as reportfile:
         # start a writer that will format the file as tab-separated
         report_writer = csv.writer(reportfile, delimiter="\t",
             quoting = csv.QUOTE_NONE)
@@ -433,7 +439,7 @@ if __name__ == "__main__":
 
     # finds the last modified date of some mpistat file
     date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
-        mpistat_files[0]).st_mtime) )
+        REPORT_DIR+mpistat_files[0]).st_mtime) )
     # converts datetime object into ISO date string
     date = "{0:%Y-%m-%d}".format(date_unix)
 

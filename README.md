@@ -2,7 +2,8 @@
 Generates a report of Lustre usage for groups on Humgen volumes. Eventually intended to replace [Humgen Lustre Usage-Quota Report](https://gitlab.internal.sanger.ac.uk/hgi/lustre-usage).
 
 ## Dependencies
-* mysql.connector 
+* mysql-connector-python
+* python-ldap
 
 ## Getting started
 1. Clone the repository
