@@ -27,6 +27,7 @@ DATABASE_NAME = "_lurge_tmp_sqlite.db"
 # another global for the report directory where the lastest mpistat output file
 # is and where the report file will be placed
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
+
 def checkReportDate(sql_db, date):
     """
     Checks the dates in the MySQL database, and stops the program if date 'date'
@@ -368,7 +369,7 @@ def createTsvReport(tmp_db, tables, date):
     db_cursor = tmp_db.cursor()
 
     global REPORT_DIR
-    with open(REPORT_DIR+name, "w", newline="") as reportfile:
+    with open(REPORT_DIR+"report-output-files/"+name, "w", newline="") as reportfile:
         # start a writer that will format the file as tab-separated
         report_writer = csv.writer(reportfile, delimiter="\t",
             quoting = csv.QUOTE_NONE)
