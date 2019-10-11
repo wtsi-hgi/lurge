@@ -425,6 +425,7 @@ if __name__ == "__main__":
     # creates a process pool which will concurrently execute 4 processes
     # NOTE: If resources permit, change this to the number of mpistat files
     # that are going to be processed
+	# Make sure to change the bsub script to ask for more cores too
     pool = multiprocessing.Pool(processes=4)
 
     print("Starting mpistat processors...")
@@ -441,10 +442,9 @@ if __name__ == "__main__":
     # finds the last modified date of some mpistat file
     date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
         REPORT_DIR+mpistat_files[0]).st_mtime) )
-    # converts datetime object into ISO date string
+
     date = "{0:%Y-%m-%d}".format(date_unix)
 
-    # transfer content of SQLite tables into one MySQL table
     print("Transferring report data to MySQL database...")
     loadIntoMySQL(tmp_db, sql_db, tables, date)
 
