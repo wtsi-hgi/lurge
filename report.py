@@ -213,7 +213,7 @@ def processMpistat(mpi_file):
 
             gid = line[3]
             try:
-                groups[gid]['volumeSize'] += int(line[1])
+                groups[gid]['volumeSize'] += int( int(line[1]) / int(line[9]) )
                 # only update the group's last edit time if it's more recent
                 if (int(line[5]) > groups[gid]['lastModified']):
                     # make sure the timestamp isn't in the future

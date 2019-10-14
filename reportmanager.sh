@@ -23,9 +23,10 @@ do
 	# Finds the date, formatted as YYYYMMDD, ${days_ago} days ago from today
 	MPI_DATE=$(date -d ${days_ago}' days ago' '+%Y%m%d')
 	echo "Looking for reports at ${MPI_DATE}..."
-	# Finds most recent date for which there is a full set of mpistat outputs.
+	# Finds most recent date for which there is a set of mpistat outputs matching
+	# the 'volumes' list.
 	# Looks at number of files found, searching based on the filename date
-	# starting at [today's date]_*.dat.gz and heading back a day for each loop
+	# starting at [today's date]_(num).dat.gz and heading back a day for each loop
 
 	# Makes sure not to run the report scripts if the most recent mpistat output
 	# files are as old as the most recent report
