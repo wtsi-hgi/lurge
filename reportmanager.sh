@@ -15,7 +15,6 @@ declare success_flag=0
 declare MPI_DATE=""
 # scratch volumes to actually scan
 declare volumes=(114 115 118 119)
-declare VOLUME_COUNT=4
 
 while [[ ${days_ago} -lt ${max_days_ago} ]] && [[ ${success_flag} -eq 0 ]];
 # while (days_ago < max_days_ago) or (sucess_flag != 1)
@@ -35,7 +34,7 @@ do
 		success_flag=2;
 		echo "Can't find mpistat output more recent than report-${MPI_DATE}.tsv!";
 	else
-		if [[ $(find "${MPISTAT_DIR}" -name "${MPI_DATE}_[$(volumes)].dat.gz" -exec echo 1 \; | wc -l) != "${VOLUME_COUNT}" ]];
+		if [[ $(find "${MPISTAT_DIR}" -name "${MPI_DATE}_*.dat.gz" -exec echo 1 \; | wc -l) != "${SCRATCH_COUNT}" ]];
 		then
 			((++days_ago));
 
