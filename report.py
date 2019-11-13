@@ -213,7 +213,14 @@ def processMpistat(mpi_file):
 
             gid = line[3]
             try:
-                groups[gid]['volumeSize'] += int( int(line[1]) / int(line[9]) )
+                try:
+                    groups[gid]['volumeSize'] += int( int(line[1]) / int(line[9]) )
+                except ZeroDivisionError:
+                    # This should almost never happen, but it did! Looks like a
+                    # file can get 'stat'ed in the middle of being deleted,
+                    # which makes it show a hard link count of 0.
+                    pass
+
                 # only update the group's last edit time if it's more recent
                 if (int(line[5]) > groups[gid]['lastModified']):
                     # make sure the timestamp isn't in the future
