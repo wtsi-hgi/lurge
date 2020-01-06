@@ -23,7 +23,7 @@ import report_config as config
 # global (gasp!!) variable used to set the filename of the SQLite database
 # each process will access. Shouldn't really ever be changed, but it's here
 # for the sake of convenience.
-DATABASE_NAME = "_lurge_tmp_sqlite.db"
+DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
 # another global for the report directory where the lastest mpistat output file
 # is and where the report file will be placed
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
@@ -188,7 +188,7 @@ def processMpistat(mpi_file):
     print("Opening {} for reading...".format(mpi_file))
     # directories with group directories to scan for .imirrored
     group_directories = {
-        'scratch114':["/lustre/scratch114/teams/", "/lustre/scratch114/project/"],
+        'scratch114':["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
         'scratch115':["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
         'scratch118':["/lustre/scratch118/humgen/old-team-data/",
             "/lustre/scratch118/humgen/hgi/projects/"],
@@ -246,13 +246,14 @@ def processMpistat(mpi_file):
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
     mpistat_date_unix = int(os.stat(REPORT_DIR+mpi_file).st_mtime)
-    ldap_con = getLDAPConnection()
     for gid in groups:
         gidNumber = gid
         groupName = groups[gid]['groupName']
 
         # updates the group names for groups discovered during mpistat crawl
         if (groupName == None):
+            # connection times out too quickly to be declared elsewhere
+            ldap_con = getLDAPConnection()
             result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                 ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
             try:
@@ -418,6 +419,7 @@ if __name__ == "__main__":
 
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
+
     print("Establishing MySQL connection...")
     sql_db = getSQLConnection()
 

@@ -16,6 +16,9 @@ declare MPI_DATE=""
 # scratch volumes to actually scan
 declare volumes=(114 115 118 119)
 
+# removes any old SQLite files left over after a crash
+rm "${REPORT_DIR}_lurge_tmp_sqlite.db"
+
 while [[ ${days_ago} -lt ${max_days_ago} ]] && [[ ${success_flag} -eq 0 ]];
 # while (days_ago < max_days_ago) or (sucess_flag != 1)
 do
