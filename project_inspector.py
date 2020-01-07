@@ -335,8 +335,8 @@ def main():
     dir_dict = {}
     if args.path is None:
         for volume in ALL_PROJECTS:
-            for directory in volume:
-                dir_dict[directory] = createMapping(ALL_PROJECTS[directory],
+            for directory in ALL_PROJECTS[volume]:
+                dir_dict[directory] = createMapping(directory,
                     HUMGEN_PIS, DEPTH)
     else:
         volume = FULL_PATH.split("/")[1][-3:]
