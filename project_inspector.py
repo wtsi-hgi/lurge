@@ -54,7 +54,7 @@ parser.add_argument('--noheader', dest="header", action="store_const", const=Fal
 
 parser.add_argument('--tosql', dest="tosql", action="store_const",
     const=True, default=False,
-    help="In addition to printing the result to stdout, this flag will make the program write the output directly to a MySQL database.")
+    help="In addition to printing the result to stdout, this flag will make the program write the output directly to a MySQL database. This will only work when no path is given.")
 
 parser.add_argument('path', nargs='?',
     help="The path to scan. The final directory in the path is considered the root. Leave empty to scan HGI project directories on different volumes all at the same time.")
@@ -268,8 +268,6 @@ def createMapping(path, names, depth):
                         if parent not in dir_dict.keys():
                             dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0, "mtime": mtime, "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
 
-                # TODO: abstract this away into something neater
-
                 # updates values for the directory and all its parents
                 dir_dict[dir]["total"] += size
                 dir_dict[dir]["files"] += 1
@@ -348,6 +346,7 @@ def printTable(dir_dict, scratch, mode):
                 _parenttotal = _total
 
             print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(_project, _path, _total, _bam, _cram, _vcf, _pedbed, _files, _mtime, _pi, _unix_group, _volume, _parenttotal))
+
         elif(mode == "general"):
             _total = humanise(dir_dict[key]["total"])
             _rawtotal = dir_dict[key]["total"]
@@ -466,6 +465,11 @@ def updateSQL(dict_of_dir_dicts, scratch):
 
 def main():
     args = parser.parse_args()
+
+    if (args.tosql and args.path is not None):
+        print("--tosql flag cannot be used with an explicit path argument!")
+        exit()
+
     DEPTH = int(args.depth)+1
     if args.path is not None:
         FULL_PATH = pathlib.Path(args.path).resolve()
