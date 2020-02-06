@@ -1,5 +1,7 @@
-# lurge - Lustre Usage Report Generator
-Generates a report of Lustre usage for groups on Humgen volumes. Eventually intended to replace [Humgen Lustre Usage-Quota Report](https://gitlab.internal.sanger.ac.uk/hgi/lustre-usage).
+# lurge/Project Inspector - Lustre Usage Report Generators
+lurge generates a report of Lustre usage for groups on Humgen volumes. Intended to replace [Humgen Lustre Usage-Quota Report](https://gitlab.internal.sanger.ac.uk/hgi/lustre-usage).
+
+Project Inspector collates `stat` data for directories, scanning all Humgen project directories by default. Can print a TSV-formatted table to stdout or put the data directly into a MySQL database.
 
 ## Dependencies
 * mysql-connector-python
@@ -8,7 +10,6 @@ Generates a report of Lustre usage for groups on Humgen volumes. Eventually inte
 ## Getting started
 1. Clone the repository
 2. Enter MySQL database credentials in `report_config.py`
-3. If necessary, edit declarations in `reportmanager.sh` to point at the correct directories
-4. If necessary, create a Python3 virtual environment and change `PY_ENV` in `reportmanager.sh` to point to it 
-5. Run `reportmanager.sh`
-
+3. If necessary, edit declarations in `reportmanager.sh`/`inspector_manager.sh` to point at the correct directories
+4. If necessary, create a Python3 virtual environment and change `PY_ENV` in `reportmanager.sh`/`inspector_manager.sh` to point to it 
+5. Run `reportmanager.sh`/`inspector_manager.sh`
