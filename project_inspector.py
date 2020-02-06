@@ -249,6 +249,17 @@ def createMapping(path, names, depth):
 
                 size = int(line[1])
                 mtime = int(line[5])
+                links = int(line[9])
+
+                # Tries to account for hard links, not perfect but is more
+                # accurate than doing nothing
+                try:
+                    size = int(size / links)
+                except ZeroDivisionError:
+                    # If a file is 'stat'ed in the middle of being deleted, it
+                    # might show a link count of 0, and can be skipped
+                    continue
+
                 if line[3] in HUMGEN_PIS.keys():
                     pi = HUMGEN_PIS[line[3]]
                 else:
