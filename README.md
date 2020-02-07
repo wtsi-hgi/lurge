@@ -1,7 +1,9 @@
-# lurge/Project Inspector - Lustre Usage Report Generators
+# Lustre Usage Report Utilities
 lurge generates a report of Lustre usage for groups on Humgen volumes. Intended to replace [Humgen Lustre Usage-Quota Report](https://gitlab.internal.sanger.ac.uk/hgi/lustre-usage).
 
 Project Inspector collates `stat` data for directories, scanning all Humgen project directories by default. Can print a TSV-formatted table to stdout or put the data directly into a MySQL database.
+
+Group Splitter takes mpistat output files and splits them by the Unix group of the owner, writing each chunk to `split/` in the working directory.
 
 ## Dependencies
 * mysql-connector-python
