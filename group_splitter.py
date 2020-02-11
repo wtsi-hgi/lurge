@@ -100,7 +100,7 @@ def main():
                     group_file = "split/" + gid + ".dat.gz"
 
                 if group_file not in opened_files.keys():
-                    opened_files[group_file] = gzip.open(group_file, 'aw')
+                    opened_files[group_file] = gzip.open(group_file, 'wt')
 
                 opened_files[group_file].write(line)
                 lines_written += 1
