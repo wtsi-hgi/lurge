@@ -91,6 +91,8 @@ def main():
 
                 if gid not in list(HUMGEN_GROUPS.keys()):
                     continue
+                if HUMGEN_GROUPS[gid] == "":
+                    continue
 
                 if args.name == True:
                     group_file = "split/" + HUMGEN_GROUPS[gid] + ".dat.gz"
