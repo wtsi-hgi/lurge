@@ -17,6 +17,9 @@ PROJECT_DIRS = {
 REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
 SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115", "/lustre/scratch118", "/lustre/scratch119"]
 
+# name of the directory to which output files will be written
+DIRECTORY_PREFIX = "split/"
+
 parser = argparse.ArgumentParser(description="Splits mpistat output by Unix group into files in the current directory. Files are named by group names by default, use the --id flag to use group IDs instead.")
 
 parser.add_argument('--id', '-i', dest='name', action='store_const',
@@ -40,7 +43,7 @@ def getHumgenIDs():
 
     return groups
 
-def find_report(dir):
+def findReport(dir):
     """Finds most recent mpistat output relevant to 'dir'"""
     report_date = datetime.date.today()
     # NOTE: this assumes dir is always /lustre/scratchXYZ, which it should be
@@ -63,15 +66,60 @@ def find_report(dir):
 
     return REPORT_DIR+filename
 
+def generateIndex(stats):
+    with open(DIRECTORY_PREFIX + "index.txt", 'at') as index:
+        index.write("Group\tBuild time (sec)\tMemory use (bytes)\n")
+        for group in stats.keys():
+            # The magic numbers used here have been found by running Treeserve
+            # on a bunch of different files and looking at the patterns.
+            # They're not an exact science but they give a good enough
+            # pessimistic estimate to be useful.
+
+            # Expected lines/second throughput of Treeserve
+            lines_per_second = 11000
+            # Expected time taken to launch an Openstack instance and prepare
+            # Treeserve to run
+            instantiation_overhead = 100 #seconds
+            # Expected number of additional nodes on top of dir count * 2
+            extra_nodes = 50
+
+            build_time = stats[group]['lines'] / lines_per_second
+            build_time += instantiation_overhead
+
+            # The memory per node is heavily dependent on how many of the total
+            # lines are directories.
+            dir_percentage = (stats[group]['dirs'] / stats[group]['lines'])*100
+
+            if dir_percentage < 0.8:
+                bytes_per_node = 12000
+            elif dir_percentage < 1.5:
+                bytes_per_node = 10000
+            elif dir_percentage < 2:
+                bytes_per_node = 9000
+            elif dir_percentage < 4:
+                bytes_per_node = 8500
+            elif dir_percentage >= 4:
+                bytes_per_node = 8000
+
+            # The number of nodes is always just a bit more than 2*dir count
+            node_count = stats[group]['dirs'] * 2 + extra_nodes
+
+            memory_use = node_count * bytes_per_node
+
+            index.write("{}\t{}\t{}\n".format(group, build_time, memory_use))
+
 def main():
     args = parser.parse_args()
     reports = []
 
     for scratch in SCRATCHES:
-        reports.append(find_report(scratch))
+        reports.append(findReport(scratch))
 
     HUMGEN_GROUPS = getHumgenIDs()
     opened_files = {}
+    # used to create an index of groups showing expected time and ram
+    # requirements for treeserve
+    stats = {}
 
     lines_read = 0
     lines_written = 0
@@ -91,23 +139,33 @@ def main():
 
                 if gid not in list(HUMGEN_GROUPS.keys()):
                     continue
-                if HUMGEN_GROUPS[gid] == "":
+                group_name = HUMGEN_GROUPS[gid]
+
+                if group_name == "":
                     continue
 
                 if args.name == True:
-                    group_file = "split/" + HUMGEN_GROUPS[gid] + ".dat.gz"
+                    group_file = DIRECTORY_PREFIX + group_name + ".dat.gz"
                 else:
-                    group_file = "split/" + gid + ".dat.gz"
+                    group_file = DIRECTORY_PREFIX + gid + ".dat.gz"
 
                 if group_file not in opened_files.keys():
                     opened_files[group_file] = gzip.open(group_file, 'wt')
+                    stats[group_name] = {'lines': 0, 'dirs': 0}
 
                 opened_files[group_file].write(line)
+
+                stats[group_name]['lines'] += 1
+                if split_line[7] == "d":
+                    stats[group_name]['dirs'] += 1
+
                 lines_written += 1
 
     for file in opened_files.keys():
         opened_files[file].close()
 
+    generateIndex(stats)
+    print("Splitting finished.", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
