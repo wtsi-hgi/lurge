@@ -16,9 +16,10 @@ PROJECT_DIRS = {
 }
 REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
 SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115", "/lustre/scratch118", "/lustre/scratch119"]
+WORKING_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 
 # name of the directory to which output files will be written
-DIRECTORY_PREFIX = "split/"
+DIRECTORY_PREFIX = "groups/"
 
 parser = argparse.ArgumentParser(description="Splits mpistat output by Unix group into files in the current directory. Files are named by group names by default, use the --id flag to use group IDs instead.")
 
@@ -67,7 +68,7 @@ def findReport(dir):
     return REPORT_DIR+filename
 
 def generateIndex(stats):
-    with open(DIRECTORY_PREFIX + "index.txt", 'wt') as index:
+    with open(WORKING_DIR + DIRECTORY_PREFIX + "index.txt", 'wt') as index:
         index.write("Group\tBuild time (sec)\tMemory use (bytes)\n")
         for group in stats.keys():
             # The magic numbers used here have been found by running Treeserve
@@ -123,7 +124,7 @@ def main():
 
     lines_read = 0
     lines_written = 0
-
+    print(os.getcwd())
     for report_path in reports:
         print("Reading {}...".format(report_path), file=sys.stderr)
         with gzip.open(report_path, 'rt') as mpistat:
@@ -150,7 +151,8 @@ def main():
                     group_file = DIRECTORY_PREFIX + gid + ".dat.gz"
 
                 if group_file not in opened_files.keys():
-                    opened_files[group_file] = gzip.open(group_file, 'wt')
+                    opened_files[group_file] = gzip.open(
+                        WORKING_DIR + group_file, 'wt')
                     stats[group_name] = {'lines': 0, 'dirs': 0}
 
                 opened_files[group_file].write(line)
