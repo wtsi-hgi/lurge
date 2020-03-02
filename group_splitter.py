@@ -67,7 +67,7 @@ def findReport(dir):
     return REPORT_DIR+filename
 
 def generateIndex(stats):
-    with open(DIRECTORY_PREFIX + "index.txt", 'at') as index:
+    with open(DIRECTORY_PREFIX + "index.txt", 'wt') as index:
         index.write("Group\tBuild time (sec)\tMemory use (bytes)\n")
         for group in stats.keys():
             # The magic numbers used here have been found by running Treeserve
