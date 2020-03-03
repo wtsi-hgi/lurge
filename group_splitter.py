@@ -16,16 +16,17 @@ PROJECT_DIRS = {
 }
 REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
 SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115", "/lustre/scratch118", "/lustre/scratch119"]
-WORKING_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
-
-# name of the directory to which output files will be written
-DIRECTORY_PREFIX = "groups/"
+WORKING_DIR = ""
 
 parser = argparse.ArgumentParser(description="Splits mpistat output by Unix group into files in the current directory. Files are named by group names by default, use the --id flag to use group IDs instead.")
 
 parser.add_argument('--id', '-i', dest='name', action='store_const',
     const=False, default=True, help="Use group IDs for files instead of" \
         "group names.")
+
+parser.add_argument('--output', '-o', dest='output', type=str, nargs='?',
+    default="groups/",
+    help="Output directory for split files.")
 
 def getHumgenIDs():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
@@ -68,7 +69,8 @@ def findReport(dir):
     return REPORT_DIR+filename
 
 def generateIndex(stats):
-    with open(WORKING_DIR + DIRECTORY_PREFIX + "index.txt", 'wt') as index:
+    global WORKING_DIR
+    with open(WORKING_DIR + "index.txt", 'wt') as index:
         index.write("Group\tBuild time (sec)\tMemory use (bytes)\n")
         for group in stats.keys():
             # The magic numbers used here have been found by running Treeserve
@@ -111,6 +113,11 @@ def generateIndex(stats):
 
 def main():
     args = parser.parse_args()
+    global WORKING_DIR
+    # resolve the output directory and convert it back to str for use by open()
+    WORKING_DIR = str(pathlib.Path(args.output).resolve()) + "/"
+    print("Writing split files to {}".format(WORKING_DIR), file=sys.stderr)
+
     reports = []
 
     for scratch in SCRATCHES:
@@ -124,7 +131,6 @@ def main():
 
     lines_read = 0
     lines_written = 0
-    print(os.getcwd())
     for report_path in reports:
         print("Reading {}...".format(report_path), file=sys.stderr)
         with gzip.open(report_path, 'rt') as mpistat:
@@ -146,9 +152,9 @@ def main():
                     continue
 
                 if args.name == True:
-                    group_file = DIRECTORY_PREFIX + group_name + ".dat.gz"
+                    group_file = group_name + ".dat.gz"
                 else:
-                    group_file = DIRECTORY_PREFIX + gid + ".dat.gz"
+                    group_file = gid + ".dat.gz"
 
                 if group_file not in opened_files.keys():
                     opened_files[group_file] = gzip.open(
