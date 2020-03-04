@@ -20,12 +20,11 @@ import report_config as config
 # [filename list] needs to be a list of mpistat output files
 # (ie, latest-119.dat.gz latest-118.dat.gz etc)
 
-# global (gasp!!) variable used to set the filename of the SQLite database
-# each process will access. Shouldn't really ever be changed, but it's here
-# for the sake of convenience.
+# full path and filename of the SQLite database each process will access.
+# Shouldn't really ever be changed, but it's here in case Lustre changes
 DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
-# another global for the report directory where the lastest mpistat output file
-# is and where the report file will be placed
+# report directory where the lastest mpistat output file can be found
+# and where the report file will be placed
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 
 def checkReportDate(sql_db, date):
@@ -444,9 +443,15 @@ if __name__ == "__main__":
     mpistat_files.sort()
 
     # distribute input files to processes running instances of processMpistat()
-    tables = pool.map(processMpistat, mpistat_files)
-    pool.close()
-    pool.join()
+    try:
+        tables = pool.map(processMpistat, mpistat_files)
+        pool.close()
+        pool.join()
+    except Exception as e:
+        sql_db.close()
+        tmp_db.close()
+        os.remove(DATABASE_NAME)
+        raise e
 
     # finds the last modified date of some mpistat file
     date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
