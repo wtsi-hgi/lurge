@@ -365,6 +365,7 @@ def printTable(dir_dict, scratch, mode):
             _cram = humanise(dir_dict[key]["cram"])
             _vcf = humanise(dir_dict[key]["vcf"])
             _pedbed = humanise(dir_dict[key]["pedbed"])
+            _unix_group = dir_dict[key]["group_name"]
 
             print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(key, _total, _bam, _cram, _vcf, _pedbed, _files, _mtime, _rawtotal))
 
