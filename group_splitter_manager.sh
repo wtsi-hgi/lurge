@@ -5,6 +5,12 @@ declare PY_ENV="/lustre/scratch115/teams/hgi/lustre-usage/.lurge_env/bin/"
 
 "${PY_ENV}"python3 "${REPORT_DIR}"group_splitter.py -o "${REPORT_DIR}/groups/"
 
+groupfile="${REPORT_DIR}groups/groupfile"
+passwdfile="${REPORT_DIR}groups/passwdfile"
+
+getent group > ${groupfile}
+getent passwd > ${passwdfile}
+
 declare tries=0
 while true; do
     s3cmd sync "${REPORT_DIR}groups/" "s3://branchserve/mpistat/"
