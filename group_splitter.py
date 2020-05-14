@@ -15,7 +15,7 @@ PROJECT_DIRS = {
     'lustre/scratch119/humgen/projects': '/lustre/scratch119/realdata/mdt[0-9]/projects'
 }
 REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
-SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115", "/lustre/scratch118", "/lustre/scratch119"]
+SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115", "/lustre/scratch116", "/lustre/scratch118", "/lustre/scratch119"]
 WORKING_DIR = ""
 
 parser = argparse.ArgumentParser(description="Splits mpistat output by Unix group into files in the current directory. Files are named by group names by default, use the --id flag to use group IDs instead.")
@@ -28,12 +28,29 @@ parser.add_argument('--output', '-o', dest='output', type=str, nargs='?',
     default="groups/",
     help="Output directory for split files.")
 
-def getHumgenIDs():
+def getHumgenGroups():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
     con.bind('','')
 
     results = con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
         ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
+        ['gidNumber', 'cn'])
+
+    groups = {}
+
+    for entry in results:
+        gid = entry[1]['gidNumber'][0].decode("UTF-8", "replace")
+        gname = entry[1]['cn'][0].decode("UTF-8", "replace")
+        groups[gid] = gname
+
+    return groups
+
+def getAllGroups():
+    con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
+    con.bind('','')
+
+    results = con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+        ldap.SCOPE_ONELEVEL, "(objectClass=posixGroup)",
         ['gidNumber', 'cn'])
 
     groups = {}
@@ -123,7 +140,8 @@ def main():
     for scratch in SCRATCHES:
         reports.append(findReport(scratch))
 
-    HUMGEN_GROUPS = getHumgenIDs()
+    HUMGEN_GROUPS = getHumgenGroups()
+    ALL_GROUPS = getAllGroups()
     opened_files = {}
     # used to create an index of groups showing expected time and ram
     # requirements for treeserve
@@ -143,10 +161,20 @@ def main():
                 split_line = line.split()
 
                 gid = split_line[3]
+                file_path = base64.b64decode(split_line[0]).decode(
+                    "UTF-8", "replace")
 
+                is_116 = False
                 if gid not in list(HUMGEN_GROUPS.keys()):
-                    continue
-                group_name = HUMGEN_GROUPS[gid]
+                    if not file_path.startswith('/lustre/scratch116/vr/projects'):
+                        continue
+                    else:
+                        is_116 = True
+
+                if is_116:
+                    group_name = ALL_GROUPS[gid]
+                else:
+                    group_name = HUMGEN_GROUPS[gid]
 
                 if group_name == "":
                     continue
