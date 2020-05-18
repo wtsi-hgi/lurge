@@ -166,7 +166,11 @@ def main():
 
                 is_116 = False
                 if gid not in list(HUMGEN_GROUPS.keys()):
-                    if not file_path.startswith('/lustre/scratch116/vr/projects'):
+                    if not file_path.startswith('/lustre/scratch116/vr/projects') \
+                            and not file_path.startswith('/lustre/scratch116' +
+                                '/humgen/projects')
+                            and not file_path.startswith('/lustre/scratch116' +
+                                '/tol/projects'):
                         continue
                     else:
                         is_116 = True
