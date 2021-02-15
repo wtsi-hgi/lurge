@@ -9,6 +9,7 @@ declare MPISTAT_DIR="/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data"
 declare -a VOLUMES=(114 115 116 117 118 119 123)
 
 # Logging
+declare LOG_DATE="$(date "+%Y%m%d")"
 exec 1>"${ROOT}/logs/cron.${LOG_DATE}.log"
 exec 2>&1
 
@@ -91,17 +92,6 @@ main() {
 
 main
 
-#
-#
-#
-#declare LOG_DATE="$(date "+%Y-%m-%d")"
-#
-#
-#declare LATEST="$(find "${ROOT}/successful" \
-#                       -type f -name "????????" -exec basename {} \; \
-#                  | sort -nr \
-#                  | head -1)"
-#
 #declare -a TASKS=(
 #  "report"
 #  "inspect"
