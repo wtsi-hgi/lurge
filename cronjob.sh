@@ -6,6 +6,7 @@ declare ROOT="/lustre/scratch119/humgen/teams/hgi/lurge"
 declare MPISTAT_DIR="/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data"
 
 # Lustre scratch volumes we are interested in
+# NOTE These must appear in numerical order
 declare -a VOLUMES=(114 115 116 117 118 119 123)
 
 # Logging
@@ -75,6 +76,11 @@ latest_full_set() {
   | grep "${VOLUMES[*]}" \
   | head -1 \
   | cut -f1
+
+  # FIXME The grep will ONLY succeed if we are looking for a full set of
+  # output volumes. If we are, say, only interested in scratch114 and
+  # scratch118, then it will always fail on days when scratch114,
+  # scratch115 and scratch118 exist (say)... This needs work
 }
 
 main() {
@@ -88,6 +94,7 @@ main() {
   fi
 
   echo "Latest full set since ${since}: ${latest}"
+  # TODO Submit Python job(s?) to farm
 }
 
 main
