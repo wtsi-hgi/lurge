@@ -6,7 +6,6 @@ declare ROOT="/lustre/scratch119/humgen/teams/hgi/lurge"
 declare MPISTAT_DIR="/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data"
 
 # Lustre scratch volumes we are interested in
-# NOTE These must appear in numerical order
 declare -a VOLUMES=(114 115 116 117 118 119 123)
 
 # Logging
@@ -44,43 +43,52 @@ latest_full_set() {
 
   get_mpistat "${since}" \
   | sort -t$'\t' -k1nr,1 -k2n,2 \
-  | awk '
+  | awk -v VOLUMES="$(IFS=,; echo "${VOLUMES[*]}")" '
     BEGIN {
       FS = OFS = "\t"
+      count = split(VOLUMES, volumes, ",")
+    }
+
+    function is_found(volume) {
+      for (v in volumes)
+        if (volumes[v] == volume)
+          return 1
+
+      return 0
+    }
+
+    function output() {
+      if (found == count) {
+        print when
+        exit 0
+      }
     }
 
     NR == 1 {
       # Initial state
       when  = $1
-      found = $2
+      found = is_found($2)
     }
 
     NR > 1 && $1 == when {
-      # No state change: Append to found
-      found = found " " $2
+      # No state change: Add to found
+      found += is_found($2)
     }
 
     $1 != when {
       # State change: Output and reset state
-      print when, found
+      output()
 
       when  = $1
-      found = $2
+      found = is_found($2)
     }
 
     END {
       # Output straggler
-      print when, found
+      output()
+      exit 1
     }
-  ' \
-  | grep "${VOLUMES[*]}" \
-  | head -1 \
-  | cut -f1
-
-  # FIXME The grep will ONLY succeed if we are looking for a full set of
-  # output volumes. If we are, say, only interested in scratch114 and
-  # scratch118, then it will always fail on days when scratch114,
-  # scratch115 and scratch118 exist (say)... This needs work
+  '
 }
 
 main() {
