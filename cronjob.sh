@@ -30,9 +30,9 @@ get_mpistat() {
   local since="$(date -d "${1} + 1 day" "+%Y%m%d")"
 
   find "${MPISTAT_DIR}" -type f -name "????????_???.dat.gz" \
-       \( -newermt "${since}" -not -newermt now \) \
+       -size +1M \( -newermt "${since}" -not -newermt now \) \
        -exec basename {} .dat.gz \; \
-  | tr '_' '\t'
+  | tr "_" "\t"
 }
 
 latest_full_set() {
@@ -45,21 +45,30 @@ latest_full_set() {
   | awk '
     BEGIN {
       FS = OFS = "\t"
-      volumes = ""
     }
 
-    NR == 1 { now = $1 }
+    NR == 1 {
+      # Initial state
+      when  = $1
+      found = $2
+    }
 
-    $1 == now { volumes = volumes " " $2 }
+    NR > 1 && $1 == when {
+      # No state change: Append to found
+      found = found " " $2
+    }
 
-    $1 != now {
-      print now, volumes
-      now = $1
-      volumes = ""
+    $1 != when {
+      # State change: Output and reset state
+      print when, found
+
+      when  = $1
+      found = $2
     }
 
     END {
-      print now, volumes
+      # Output straggler
+      print when, found
     }
   ' \
   | grep "${VOLUMES[*]}" \
