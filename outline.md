@@ -1,10 +1,14 @@
-# Scripts
+# Outline
+
+Trying to understand how the pipeline works
+
+## Scripts
 
 * `report_cron.sh`
   * bsub: `reportmanager.sh`
-    * tries to determine latest full set of mpistat (buggy)
+    * tries to determine latest full set of mpistat
     * only looks over the past N days
-    * won't proceed if report-DATE.tsv exists (buggy)
+    * won't proceed if report-DATE.tsv exists
     * symlinks mpistat locally for convenience
     * pass to: `report.py` with DATE and SYMLINKS
       * creates temporary sqlite database on disk
@@ -26,14 +30,20 @@
       * dump sqlite tables into report-DATE.tsv
 
 * `inspector_cron.sh`
-  * bsub: inspector_manager.sh
+  * bsub: `inspector_manager.sh`
+    * tries to determine latest full set of mpistat
+    * only looks over the past N days
+    * won't proceed if report-DATE.tsv exists
+    * pass to: `project_inspector.py` with `--tosql`
+      * TODO...
 
 * `group_splitter_cron.sh`
-  * bsub: group_splitter_manager.sh
+  * bsub: `group_splitter_manager.sh`
+    * TODO...
 
-# MySQL Database
+## MySQL Database
 
-## `lustre_usage`
+### `lustre_usage`
 
 Used by Weaver
 
@@ -51,7 +61,7 @@ Used by Weaver
 | date                 | date    | Unique A    |
 | isHumgen             | tinyint |             |
 
-## `spaceman` and `spaceman_tmp`
+### `spaceman` and `spaceman_tmp`
 
 Used by Spaceman
 
