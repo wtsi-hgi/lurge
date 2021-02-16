@@ -1,3 +1,5 @@
+# Scripts
+
 * `report_cron.sh`
   * bsub: `reportmanager.sh`
     * tries to determine latest full set of mpistat (buggy)
@@ -28,3 +30,47 @@
 
 * `group_splitter_cron.sh`
   * bsub: group_splitter_manager.sh
+
+# MySQL Database
+
+## `lustre_usage`
+
+Used by Weaver
+
+| Field                | Type    | Constraints |
+| :------------------- | :------ | :---------- |
+| id                   | int     | PK auto     |
+| Lustre Volume        | varchar | Unique A    |
+| PI                   | varchar |             |
+| Unix Group           | varchar | Unique A    |
+| Used (bytes)         | bigint  |             |
+| Quota (bytes)        | bigint  |             |
+| Consumption          | varchar |             |
+| Last Modified (days) | decimal |             |
+| Archived Directories | varchar |             |
+| date                 | date    | Unique A    |
+| isHumgen             | tinyint |             |
+
+## `spaceman` and `spaceman_tmp`
+
+Used by Spaceman
+
+| Field                | Type    | Constraints |
+| :------------------- | :------ | :---------- |
+| index                | int     | PK auto     |
+| Project              | varchar |             |
+| Directory            | varchar |             |
+| Volume               | varchar |             |
+| Files                | bigint  |             |
+| Total                | float   |             |
+| BAM                  | float   |             |
+| CRAM                 | float   |             |
+| VCF                  | float   |             |
+| PEDBED               | float   |             |
+| Last Modified (days) | float   |             |
+| PI                   | varchar |             |
+| Project Total        | float   |             |
+| Status               | varchar |             |
+| Action               | varchar |             |
+| Comment              | varchar |             |
+| Unix Group           | varchar |             |
