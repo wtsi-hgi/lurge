@@ -35,7 +35,36 @@ Trying to understand how the pipeline works
     * only looks over the past N days
     * won't proceed if report-DATE.tsv exists
     * pass to: `project_inspector.py` with `--tosql`
-      * TODO...
+      * `--tosql` will write to the MySQL DB, as well as stdout
+      * If given a path (mutually exclusive with `--tosql`), then apply
+        mapping for Lustres with multiple MDTs
+      * get humgen groups from ldap (gid, name and PI), deref PI dn to
+        fetch surname
+      * Create multiprocess pool and to create mapping for path/all
+        project roots
+        * Finds the latest mpistat output for the scratch volume by
+          starting at today and working backwards until something's
+          found
+        * Iterate through mpistat file
+          * If the path matches what we're looking for:
+            * If we have a directory
+              * Normalise `users` directories, if they exist and it's
+                possible, to `users/whatever`
+              * Record in dictionary, if it doesn't exist; also add its
+                parents to dictionary, if they don't exist. Set all
+                accumulators for entry to 0, except files (to 1)
+              * Set PI and group name for entry
+            * If we have a file
+              * Go a level deeper if we're in a `users` directory, when
+                possible
+              * Record in dictionary, if it doesn't exist, with
+                appropriate mtime, pi and group; do the same for parents
+                (if they don't exist)
+              * Aggregate size and files; update mtime if newer. Do this
+                for all parents in dictionary
+              * If the file matches one of the interesting classes (bam,
+                cram, etc.) then aggregate for those and its parents
+        * Write to DB, if required, otherwise print to stdout
 
 * `group_splitter_cron.sh`
   * bsub: `group_splitter_manager.sh`
