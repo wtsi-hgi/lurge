@@ -68,7 +68,21 @@ Trying to understand how the pipeline works
 
 * `group_splitter_cron.sh`
   * bsub: `group_splitter_manager.sh`
-    * TODO...
+    * `group_splitter.py`
+      * Finds latest mpistat file for each volume its interested in
+      * Gets all groups and all humgen groups from ldap
+      * Iterate through each mpistat file:
+        * Decode file path
+        * If gid isn't humgen or special (116/vr or tol) then skip
+        * Gets group name by gid; if it can't, then skip
+        * Open the output file for the group, if it hasn't been already
+        * Write the input to the output file
+        * Take stats (number of records and number of directories)
+      * Create an "index file" from the group/records/directories stats
+        based on anecdotal timing (this is to estimate how long
+        TreeServe takes to start)
+    * Dumps passwd and group databases to files
+    * Uploads split mpistat files, passwd and group databases to S3
 
 ## MySQL Database
 
