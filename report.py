@@ -1,3 +1,4 @@
+import utils.ldap
 import mysql.connector
 import os
 import re
@@ -42,16 +43,13 @@ def checkReportDate(sql_db, date):
         if (date == result):
             global DATABASE_NAME
             os.remove(DATABASE_NAME)
-            exit("Report for date {} already found in MySQL database! \
+            raise FileExistsError("Report for date {} already found in MySQL database! \
                 Exiting.".format(date))
 
 def getSQLConnection():
     # connects to the MySQL server used to store the report data, change the
     # credentials here to point at your desired database
-    if (config.PORT == None):
-        port = 3306 # if port is not set, set it to default
-    else:
-        port = config.PORT
+    port = config.PORT if config.PORT is None else 3306
 
     db_con = mysql.connector.connect(
         host=config.HOST,
@@ -62,75 +60,6 @@ def getSQLConnection():
     )
 
     return db_con
-
-def getLDAPConnection():
-    con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
-    # Sanger internal LDAP is public so no credentials needed
-    con.bind("","")
-
-    return con
-
-def findGroups(ldap_con, tmp_db):
-    """
-    Finds Humgen groups using LDAP and writes the group ID number, group name,
-    and corresponding PI's surname to table 'group_table' in tmp_db.
-
-    :param ldap_con: LDAP connection to use for queries
-    :param tmp_db: SQLite database connection object to write 'group_table' to
-    """
-
-    results = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-        ['cn', 'gidNumber', 'sangerProjectPI'])
-
-    db_cursor = tmp_db.cursor()
-    # cn = groupName, sangerProjectPI['uid'] = PI's user id
-    db_cursor.execute('''CREATE TABLE group_table(gidNumber INTEGER PRIMARY KEY,
-        groupName TEXT, PI TEXT)''')
-    tmp_db.commit()
-
-    # used to collect every PI uid that needs to be resolved, use of set means
-    # that duplicate uids are ignored
-    PIuids = set()
-
-    for item in results:
-        # gidNumber is stored as a byte-encoded string in results
-        gidNumber = int( item[1]['gidNumber'][0].decode('UTF-8') )
-        groupName = item[1]['cn'][0].decode('UTF-8')
-
-        # not all groups have a PI, KeyError thrown in those cases
-        try:
-            # string in the form 'uid=[xyz],ou=people,dc=sanger,dc=ac,dc=uk'
-            # we want just [xyz]
-            PIdn = item[1]['sangerProjectPI'][0].decode('UTF-8')
-
-            # first split = 'uid=[xyz]'
-            # second split = '[xyz]'
-            PIuid = PIdn.split(',')[0].split('=')[1]
-            PIuids.add( PIuid )
-        except KeyError:
-            # nothing to do except skip the PI related code
-            PIuid = None
-
-        db_cursor.execute('''INSERT INTO group_table(gidNumber, groupName, PI)
-            VALUES(?,?,?)''', (gidNumber, groupName, PIuid))
-
-    # write all prior INSERTs to table in one transaction
-    tmp_db.commit()
-
-    # replaces uids in group_table with full surnames of the corresponding PI
-    for uid in PIuids:
-        surname_result = ldap_con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
-            ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
-
-        surname = surname_result[0][1]['sn'][0].decode('UTF-8')
-
-        db_cursor.execute('''UPDATE group_table SET PI = ? WHERE PI = ?''',
-            (surname, uid))
-
-    # write prior UPDATEs to table, nothing needs returning
-    tmp_db.commit()
-    print("Created table of Humgen Unix groups.")
 
 def scanDirectory(directory):
     """
@@ -146,29 +75,18 @@ def scanDirectory(directory):
 
     return None
 
-def processMpistat(mpi_file):
+def processMpistat(mpi_file, tmp_db):
     """
     Processes a single mpistat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
 
     :param mpi_file: File name of mpistat output file to process
     """
-    global DATABASE_NAME
-    tmp_db = sqlite3.connect(DATABASE_NAME)
 
     db_cursor = tmp_db.cursor()
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
 
-    global REPORT_DIR
-    # reads first line of the mpistat file to establish the scratch volume
-    with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
-        # each line is a whitespace separated list of fields, the first element
-        # is the directory
-        b64_directory = mpi_text.readline().split()[0]
-        # b64_directory is a base64 encoded string '/lustre/scratch[XYZ]'
-        directory = base64.b64decode(b64_directory).decode("UTF-8")
-        # gets the last element of the directory, ie "scratch[XYZ]"
-        volume = directory.split("/")[-1]
+    volume = f"scratch{mpi_file.split('.')[0].split('-')[1]}"
 
     groups = {}
     for row in db_cursor:
@@ -195,6 +113,7 @@ def processMpistat(mpi_file):
             "/lustre/scratch119/humgen/projects/"],
         "scratch123":["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
         }
+
     with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
         # fields:
@@ -253,7 +172,7 @@ def processMpistat(mpi_file):
         # updates the group names for groups discovered during mpistat crawl
         if (groupName == None):
             # connection times out too quickly to be declared elsewhere
-            ldap_con = getLDAPConnection()
+            ldap_con = utils.ldap.getLDAPConnection()
             result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                 ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
             try:
@@ -414,13 +333,16 @@ def main(date, mpistat_files):
     print("Establishing MySQL connection...")
     sql_db = getSQLConnection()
 
-    checkReportDate(sql_db, date)
+    try:
+        checkReportDate(sql_db, date)
+    except FileExistsError:
+        return
 
     print("Establishing LDAP connection...")
-    ldap_con = getLDAPConnection()
+    ldap_con = utils.ldap.getLDAPConnection()
 
     print("Collecting group information...")
-    findGroups(ldap_con, tmp_db)
+    utils.ldap.findGroups(ldap_con, tmp_db)
 
     # creates a process pool which will concurrently execute 4 processes
     # NOTE: If resources permit, change this to the number of mpistat files
@@ -434,9 +356,12 @@ def main(date, mpistat_files):
     # having an ordered multiprocess output later.
     mpistat_files.sort()
 
+    def mpi_worker(mpistat_file):
+        processMpistat(mpistat_file, tmp_db)
+
     # distribute input files to processes running instances of processMpistat()
     try:
-        tables = pool.map(processMpistat, mpistat_files)
+        tables = pool.map(mpi_worker, mpistat_files)
         pool.close()
         pool.join()
     except Exception as e:
