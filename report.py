@@ -407,16 +407,7 @@ def createTsvReport(tmp_db, tables, date):
 
     print("{} created.".format(name))
 
-if __name__ == "__main__":
-    # ignore first argument (the name of the script)
-    # second argument is the date, all other arguments are file names
-    date = sys.argv[1]
-    mpistat_files = sys.argv[2:]
-
-    # checks if 'date' is formatted correctly
-    if re.search("\d\d\d\d-\d\d-\d\d", date) is None:
-        exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
-
+def main(date, mpistat_files):
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
@@ -472,3 +463,16 @@ if __name__ == "__main__":
     # delete the on-disk SQLite database file
     os.remove(DATABASE_NAME)
     print("Done.")
+
+if __name__ == "__main__":
+    # ignore first argument (the name of the script)
+    # second argument is the date, all other arguments are file names
+    date = sys.argv[1]
+    mpistat_files = sys.argv[2:]
+
+    # checks if 'date' is formatted correctly
+    if re.search("\d\d\d\d-\d\d-\d\d", date) is None:
+        exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
+
+    main(date, mpistat_files)
+    

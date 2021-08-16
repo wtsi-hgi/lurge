@@ -34,7 +34,8 @@ def main(mode: str) -> None:
     while (days_ago < MAX_DAYS_AGO and success == 0):
         
         # Finds the date, formatted as YYYYMMDD, ${days_ago} days ago from today
-        mpi_date: str = (datetime.datetime.today() - datetime.timedelta(days = days_ago)).strftime("%Y%m%d")
+        mpi_date_dt: datetime.date = datetime.datetime.today() - datetime.timedelta(days = days_ago)
+        mpi_date: str = mpi_date_dt.strftime("%Y%m%d")
         print(f"Looking for reports at {mpi_date}...")
 
         # We're looking for the most recent date with a full set of mpistat outputs
@@ -71,8 +72,8 @@ def main(mode: str) -> None:
                     print("Created links to latest reports")
 
                     # Run report generator
-                    # TODO
-                    pass
+                    import report
+                    report.main(mpi_date_dt.strftime("%Y-%m-%d"), filenames)
                     success = 1
 
                 else:
