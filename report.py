@@ -1,5 +1,3 @@
-import utils.ldap
-import mysql.connector
 import os
 import re
 import datetime
@@ -7,10 +5,15 @@ import csv
 import subprocess
 import multiprocessing
 import sqlite3
-import base64
-import ldap
 import gzip
 import sys
+
+import ldap
+import mysql.connector
+
+import db.report
+import utils.ldap
+
 # importing report_config.py file, not a library
 import report_config as config
 
@@ -253,42 +256,6 @@ def processMpistat(mpi_file, tmp_db):
     return volume
 
 
-def loadIntoMySQL(tmp_db, sql_db, tables, date):
-    """
-    Reads the contents of tables in tmp_db and writes them to a MySQL database.
-
-    :param tmp_db: SQLite database in which tables are stored
-    :param sql_db: MySQL database into which to write data
-    :param tables: List of table names to read
-    :param date: Date string to label the data (ie, "2019-09-20")
-    """
-    tmp_cursor = tmp_db.cursor()
-    sql_cursor = sql_db.cursor()
-
-    # iterates over each row in each SQLite table, and just moves the data over
-    # into a single MySQL table
-    for table in tables:
-        print("Inserting data for {}...".format(table))
-        tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
-            consumption, lastModified, archivedDirs, isHumgen FROM {}
-            ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
-        for row in tmp_cursor:
-            # row elements are ordered like the column names in the select,
-            # ie 'volume' is always row[0]
-            instruction = '''INSERT INTO lustre_usage (`Lustre Volume`,
-                `PI`, `Unix Group`, `Used (bytes)`, `Quota (bytes)`, `Consumption`,
-                `Last Modified (days)`, `Archived Directories`, `IsHumgen`, `date`)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
-            # creates single data tuple from existing row tuple and singleton
-            # date tuple, plain variables can't be concatenated to tuples
-            data = row + (date,)
-
-            sql_cursor.execute(instruction, data)
-
-    sql_db.commit()
-    print("Report data for {} loaded into MySQL.".format(date))
-
-
 def createTsvReport(tmp_db, tables, date):
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
@@ -364,12 +331,12 @@ def main(date, mpistat_files):
     # having an ordered multiprocess output later.
     mpistat_files.sort()
 
-    def mpi_worker(mpistat_file):
+    def _mpi_worker(mpistat_file):
         processMpistat(mpistat_file, tmp_db)
 
     # distribute input files to processes running instances of processMpistat()
     try:
-        tables = pool.map(mpi_worker, mpistat_files)
+        tables = pool.map(_mpi_worker, mpistat_files)
         pool.close()
         pool.join()
     except Exception as e:
@@ -385,7 +352,7 @@ def main(date, mpistat_files):
     date = "{0:%Y-%m-%d}".format(date_unix)
 
     print("Transferring report data to MySQL database...")
-    loadIntoMySQL(tmp_db, sql_db, tables, date)
+    db.report.loadIntoMySQL(tmp_db, sql_db, tables, date)
 
     print("Writing report data to .tsv file...")
     createTsvReport(tmp_db, tables, date)
