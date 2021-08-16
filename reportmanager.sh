@@ -2,19 +2,31 @@
 
 # where the mpistat output files are found
 declare MPISTAT_DIR="/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
+#declare MPISTAT_DIR="/lustre/scratch115/teams/hgi/lustre-usage/wrstat2mpistat/"
 # where the reports are generated, should usually also be current working dir
 declare REPORT_DIR="/lustre/scratch115/teams/hgi/lustre-usage/"
 declare PY_ENV="/lustre/scratch115/teams/hgi/lustre-usage/.lurge_env/bin/"
-# how many scratchXYZ volumes there are (that mpistat creates output for)
-declare SCRATCH_COUNT=6
+
 # how many days back the script will look for sets
-declare max_days_ago=7
+declare max_days_ago=10
 
 declare days_ago=0
 declare success_flag=0
 declare MPI_DATE=""
 # scratch volumes to actually scan
-declare volumes=(114 115 118 119)
+declare -a VOLUMES=(114 115 118 119 123)
+
+all_exist() {
+  local date="$1"
+  shift
+
+  while (( $# )); do
+    [[ -e "${MPISTAT_DIR}${date}_${1}.dat.gz" ]] || return 1
+    shift
+  done
+
+  return 0
+}
 
 # removes any old SQLite files left over after a crash
 rm "${REPORT_DIR}_lurge_tmp_sqlite.db"
@@ -25,19 +37,18 @@ do
 	# Finds the date, formatted as YYYYMMDD, ${days_ago} days ago from today
 	MPI_DATE=$(date -d ${days_ago}' days ago' '+%Y%m%d')
 	echo "Looking for reports at ${MPI_DATE}..."
-	# Finds most recent date for which there is a set of mpistat outputs matching
-	# the 'volumes' list.
+	# Finds most recent date for which there is a full set of mpistat outputs.
 	# Looks at number of files found, searching based on the filename date
-	# starting at [today's date]_(num).dat.gz and heading back a day for each loop
+	# starting at [today's date]_*.dat.gz and heading back a day for each loop
 
 	# Makes sure not to run the report scripts if the most recent mpistat output
 	# files are as old as the most recent report
-	if [[ $(find "${REPORT_DIR}" -name "report-${MPI_DATE}.tsv" -exec echo 1 \; | wc -l) -ne 0 ]];
+	if [[ $(find "${REPORT_DIR}report-output-files" -name "report-${MPI_DATE}.tsv" -exec echo 1 \; | wc -l) -ne 0 ]];
 	then
 		success_flag=2;
 		echo "Can't find mpistat output more recent than report-${MPI_DATE}.tsv!";
 	else
-		if [[ $(find "${MPISTAT_DIR}" -name "${MPI_DATE}_*.dat.gz" -exec echo 1 \; | wc -l) != "${SCRATCH_COUNT}" ]];
+		if ! all_exist "${MPI_DATE}" "${VOLUMES[@]}"
 		then
 			((++days_ago));
 
@@ -46,7 +57,7 @@ do
 			# "latest-{volume}.dat.gz" in the report directory
 			declare -a filenames
 
-			for volume in ${volumes[@]};
+			for volume in ${VOLUMES[@]};
 			do
 				ln -fs "${MPISTAT_DIR}${MPI_DATE}_${volume}.dat.gz" "${REPORT_DIR}latest-${volume}.dat.gz"
 				# iteratively extend an array of file names

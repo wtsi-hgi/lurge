@@ -192,7 +192,8 @@ def processMpistat(mpi_file):
         'scratch118':["/lustre/scratch118/humgen/old-team-data/",
             "/lustre/scratch118/humgen/hgi/projects/"],
         'scratch119':["/lustre/scratch119/humgen/teams",
-            "/lustre/scratch119/humgen/projects/"]
+            "/lustre/scratch119/humgen/projects/"],
+        "scratch123":["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
         }
     with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
