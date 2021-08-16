@@ -41,23 +41,25 @@ ALL_PROJECTS = {
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"]
 }
 
-parser = argparse.ArgumentParser(description="Creates a tab-separated table summarising disk usage of a project directory, and the total size of BAM/CRAM/VCF/BED/PED files inside.")
+parser = argparse.ArgumentParser(
+    description="Creates a tab-separated table summarising disk usage of a project directory, and the total size of BAM/CRAM/VCF/BED/PED files inside.")
 
 parser.add_argument('--depth', '-d', nargs='?', type=int, default=2,
-    help="The depth of the output. A depth of 0 shows the summary for the root path only, a depth of 1 shows the summary for each subdirectory, and a depth of 2 also shows summaries for the children of the subdirectories. Set to 2 by default.")
+                    help="The depth of the output. A depth of 0 shows the summary for the root path only, a depth of 1 shows the summary for each subdirectory, and a depth of 2 also shows summaries for the children of the subdirectories. Set to 2 by default.")
 
 parser.add_argument('--generic', dest="mode", action="store_const", const="general", default="project",
-    help="Make the output generic. When this flag is used, the output will have fewer redundant columns, and the Project/Directory column will be replaced by a single Path. Use when scanning paths that aren't project directories.")
+                    help="Make the output generic. When this flag is used, the output will have fewer redundant columns, and the Project/Directory column will be replaced by a single Path. Use when scanning paths that aren't project directories.")
 
 parser.add_argument('--noheader', dest="header", action="store_const", const=False, default=True,
-    help="Don't print the column header.")
+                    help="Don't print the column header.")
 
 parser.add_argument('--tosql', dest="tosql", action="store_const",
-    const=True, default=False,
-    help="In addition to printing the result to stdout, this flag will make the program write the output directly to a MySQL database. This will only work when no path is given.")
+                    const=True, default=False,
+                    help="In addition to printing the result to stdout, this flag will make the program write the output directly to a MySQL database. This will only work when no path is given.")
 
 parser.add_argument('path', nargs='?',
-    help="The path to scan. The final directory in the path is considered the root. Leave empty to scan HGI project directories on different volumes all at the same time.")
+                    help="The path to scan. The final directory in the path is considered the root. Leave empty to scan HGI project directories on different volumes all at the same time.")
+
 
 def humanise(number):
     """Converts bytes to human-readable string."""
@@ -74,6 +76,7 @@ def humanise(number):
     else:
         return "{} PiB".format(round(number/2**50, 2))
 
+
 def getParents(dir):
     """Returns list of directories which are a parent to 'dir'"""
     split_dir = dir.split("/")
@@ -83,6 +86,7 @@ def getParents(dir):
         parents.append("/".join(split_dir[0:i]))
 
     return parents
+
 
 def findReport(dir):
     """Finds most recent mpistat output relevant to 'dir'"""
@@ -94,7 +98,8 @@ def findReport(dir):
     filename = ""
 
     while success is False:
-        filename = "{}_{}.dat.gz".format(report_date.strftime("%Y%m%d"), volume)
+        filename = "{}_{}.dat.gz".format(
+            report_date.strftime("%Y%m%d"), volume)
         try:
             gzip.open(REPORT_DIR+filename, 'rt')
             success = True
@@ -103,17 +108,19 @@ def findReport(dir):
             report_date -= datetime.timedelta(days=1)
 
     if report_date != datetime.date.today():
-        print("Warning, couldn't find mpistat output for today. Used mpistat output for {0:%Y-%m-%d} instead.".format(report_date), file=sys.stderr)
+        print("Warning, couldn't find mpistat output for today. Used mpistat output for {0:%Y-%m-%d} instead.".format(
+            report_date), file=sys.stderr)
 
     return REPORT_DIR+filename
 
+
 def getHumgenNames():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
-    con.bind('','')
+    con.bind('', '')
 
     results = con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-        ['gidNumber', 'sangerProjectPI', 'cn'])
+                           ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
+                           ['gidNumber', 'sangerProjectPI', 'cn'])
 
     groups_pis = {}
     groups_names = {}
@@ -131,7 +138,7 @@ def getHumgenNames():
     for PIuid in PIs:
         _uid = PIuid.split(',')[0].split('=')[1]
         result = con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
-            ldap.SCOPE_ONELEVEL, "(uid={})".format(_uid), ['sn'])
+                              ldap.SCOPE_ONELEVEL, "(uid={})".format(_uid), ['sn'])
 
         surname = result[0][1]['sn'][0].decode("UTF-8")
         uid_sn[PIuid] = surname
@@ -141,6 +148,7 @@ def getHumgenNames():
         groups_pis[gid] = surname
 
     return (groups_pis, groups_names)
+
 
 def createMapping(path, names, depth):
     """
@@ -183,10 +191,11 @@ def createMapping(path, names, depth):
             lines += 1
             if lines % 500000 == 0:
                 print("{} lines read (volume {})".format(lines, scratch),
-                    file=sys.stderr)
+                      file=sys.stderr)
             line = line.split()
 
-            entry_path = base64.b64decode(line[0]).decode("UTF-8", "replace").strip("/")
+            entry_path = base64.b64decode(line[0]).decode(
+                "UTF-8", "replace").strip("/")
 
             # if the entry path doesn't contain any of the target directories,
             # it's skipped and the next entry is read
@@ -223,11 +232,13 @@ def createMapping(path, names, depth):
                     group_name = "-"
 
                 if dir not in dir_dict.keys():
-                    dir_dict[dir] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 1, "mtime": int(line[5]), "pi": pi, "group_name": group_name, "volume": scratch[-3:]}
+                    dir_dict[dir] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 1, "mtime": int(
+                        line[5]), "pi": pi, "group_name": group_name, "volume": scratch[-3:]}
 
                     for parent in getParents(dir):
                         if parent not in dir_dict.keys():
-                            dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 1, "mtime": int(line[5]), "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
+                            dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 1, "mtime": int(
+                                line[5]), "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
 
                 dir_dict[dir]["pi"] = pi
                 dir_dict[dir]["group_name"] = group_name
@@ -273,11 +284,13 @@ def createMapping(path, names, depth):
                 # if the directory hasn't been added to the dictionary yet, it
                 # and all its parents are created
                 if dir not in dir_dict.keys():
-                    dir_dict[dir] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0, "mtime": mtime, "pi": pi, "group_name": group_name, "volume": scratch[-3:]}
+                    dir_dict[dir] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0,
+                                     "mtime": mtime, "pi": pi, "group_name": group_name, "volume": scratch[-3:]}
 
                     for parent in getParents(dir):
                         if parent not in dir_dict.keys():
-                            dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0, "mtime": mtime, "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
+                            dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0,
+                                                "mtime": mtime, "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
 
                 # updates values for the directory and all its parents
                 dir_dict[dir]["total"] += size
@@ -314,6 +327,7 @@ def createMapping(path, names, depth):
                         dir_dict[parent]["pedbed"] += size
 
     return dir_dict
+
 
 def printTable(dir_dict, scratch, mode):
     report_path = findReport(scratch)
@@ -356,7 +370,8 @@ def printTable(dir_dict, scratch, mode):
             else:
                 _parenttotal = _total
 
-            print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(_project, _path, _total, _bam, _cram, _vcf, _pedbed, _files, _mtime, _pi, _unix_group, _volume, _parenttotal))
+            print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(_project, _path, _total,
+                  _bam, _cram, _vcf, _pedbed, _files, _mtime, _pi, _unix_group, _volume, _parenttotal))
 
         elif(mode == "general"):
             _total = humanise(dir_dict[key]["total"])
@@ -367,12 +382,14 @@ def printTable(dir_dict, scratch, mode):
             _pedbed = humanise(dir_dict[key]["pedbed"])
             _unix_group = dir_dict[key]["group_name"]
 
-            print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(key, _total, _bam, _cram, _vcf, _pedbed, _files, _mtime, _rawtotal))
+            print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(
+                key, _total, _bam, _cram, _vcf, _pedbed, _files, _mtime, _rawtotal))
+
 
 def updateSQL(dict_of_dir_dicts, scratch):
     print("Writing result to spaceman database...", file=sys.stderr)
     if (config.PORT == None):
-        port = 3306 # if the port isn't set in the config, it's the SQL default
+        port = 3306  # if the port isn't set in the config, it's the SQL default
     else:
         port = config.PORT
 
@@ -437,7 +454,7 @@ def updateSQL(dict_of_dir_dicts, scratch):
             ''')
 
             data = (_project, _path, _volume, _files, _total, _bam, _cram, _vcf,
-                _pedbed, _mtime, _pi, _unix_group, _parenttotal, '', '', '')
+                    _pedbed, _mtime, _pi, _unix_group, _parenttotal, '', '', '')
 
             cursor.execute(instruction, data)
 
@@ -475,6 +492,7 @@ def updateSQL(dict_of_dir_dicts, scratch):
 
     print("Updated spaceman's MySQL database.", file=sys.stderr)
 
+
 def main():
     args = parser.parse_args()
 
@@ -498,8 +516,8 @@ def main():
     if args.path is None:
         with multiprocessing.Pool() as pool:
             dictionaries = pool.starmap(createMapping,
-                zip(ALL_PROJECTS.values(), repeat(HUMGEN_NAMES),
-                repeat(DEPTH)))
+                                        zip(ALL_PROJECTS.values(), repeat(HUMGEN_NAMES),
+                                            repeat(DEPTH)))
 
         for dictionary in dictionaries:
             volume = list(dictionary.values())[0]["volume"]
@@ -515,10 +533,12 @@ def main():
         if (args.mode == "project" and args.header == True):
             print("Project\tDirectory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume\tProject Total")
         elif (args.mode == "general" and args.header == True):
-            print("Directory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tTotal (bytes)")
+            print(
+                "Directory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tTotal (bytes)")
 
         for volume in dir_dict:
             printTable(dir_dict[volume], volume, args.mode)
+
 
 if __name__ == "__main__":
     main()

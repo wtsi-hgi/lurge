@@ -28,6 +28,7 @@ DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
 # and where the report file will be placed
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 
+
 def checkReportDate(sql_db, date):
     """
     Checks the dates in the MySQL database, and stops the program if date 'date'
@@ -46,6 +47,7 @@ def checkReportDate(sql_db, date):
             raise FileExistsError("Report for date {} already found in MySQL database! \
                 Exiting.".format(date))
 
+
 def getSQLConnection():
     # connects to the MySQL server used to store the report data, change the
     # credentials here to point at your desired database
@@ -54,12 +56,13 @@ def getSQLConnection():
     db_con = mysql.connector.connect(
         host=config.HOST,
         database=config.DATABASE,
-        port = port,
+        port=port,
         user=config.USER,
         passwd=config.PASSWORD
     )
 
     return db_con
+
 
 def scanDirectory(directory):
     """
@@ -74,6 +77,7 @@ def scanDirectory(directory):
                 return directory
 
     return None
+
 
 def processMpistat(mpi_file, tmp_db):
     """
@@ -96,8 +100,8 @@ def processMpistat(mpi_file, tmp_db):
 
         # lastmodified is in Unix time and will be converted to "days since
         # last modification" later
-        groups[str(gid)] = {'groupName':groupName, 'PIname':PIname, 'volumeSize':0,
-            'lastModified':0, 'volume':volume, 'isHumgen':True}
+        groups[str(gid)] = {'groupName': groupName, 'PIname': PIname, 'volumeSize': 0,
+                            'lastModified': 0, 'volume': volume, 'isHumgen': True}
 
     # lazily reads the mpistat file without unzipping the whole thing first
     starttime = datetime.datetime.now()
@@ -105,14 +109,14 @@ def processMpistat(mpi_file, tmp_db):
     print("Opening {} for reading...".format(mpi_file))
     # directories with group directories to scan for .imirrored
     group_directories = {
-        'scratch114':["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
-        'scratch115':["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
-        'scratch118':["/lustre/scratch118/humgen/old-team-data/",
-            "/lustre/scratch118/humgen/hgi/projects/"],
-        'scratch119':["/lustre/scratch119/humgen/teams",
-            "/lustre/scratch119/humgen/projects/"],
-        "scratch123":["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
-        }
+        'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
+        'scratch115': ["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
+        'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
+                       "/lustre/scratch118/humgen/hgi/projects/"],
+        'scratch119': ["/lustre/scratch119/humgen/teams",
+                       "/lustre/scratch119/humgen/projects/"],
+        "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
+    }
 
     with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
@@ -133,7 +137,8 @@ def processMpistat(mpi_file, tmp_db):
             gid = line[3]
             try:
                 try:
-                    groups[gid]['volumeSize'] += int( int(line[1]) / int(line[9]) )
+                    groups[gid]['volumeSize'] += int(
+                        int(line[1]) / int(line[9]))
                 except ZeroDivisionError:
                     # This should almost never happen, but it did! Looks like a
                     # file can get 'stat'ed in the middle of being deleted,
@@ -144,15 +149,15 @@ def processMpistat(mpi_file, tmp_db):
                 if (int(line[5]) > groups[gid]['lastModified']):
                     # make sure the timestamp isn't in the future
                     now = datetime.datetime.now()
-                    now_unix = int( datetime.datetime.timestamp(now) )
+                    now_unix = int(datetime.datetime.timestamp(now))
                     if(now_unix > int(line[5])):
                         groups[gid]['lastModified'] = int(line[5])
             except KeyError:
                 # the first time the group appears, add it to the dictionary
                 # its name will be found later
-                groups[gid] = {'groupName':None, 'PIname':None,
-                    'volumeSize':int(line[1]), 'lastModified':int(line[5]),
-                    'volume':volume, 'isHumgen':False}
+                groups[gid] = {'groupName': None, 'PIname': None,
+                               'volumeSize': int(line[1]), 'lastModified': int(line[5]),
+                               'volume': volume, 'isHumgen': False}
 
             lines_processed += 1
 
@@ -174,7 +179,7 @@ def processMpistat(mpi_file, tmp_db):
             # connection times out too quickly to be declared elsewhere
             ldap_con = utils.ldap.getLDAPConnection()
             result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+                                       ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
             try:
                 groupName = result[0][1]['cn'][0].decode('UTF-8')
             except IndexError:
@@ -189,20 +194,20 @@ def processMpistat(mpi_file, tmp_db):
         # mpistat_date_unix - lastModified_unix is the seconds since last
         # modification relative to when the mpistat file was produced
         # divided by 86400 (seconds in a day) to find day difference
-        lastModified = round((mpistat_date_unix - lastModified_unix)/86400 , 1)
+        lastModified = round((mpistat_date_unix - lastModified_unix)/86400, 1)
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
         # needs to be multiplied by 1024
         try:
             quota = int(subprocess.check_output(["lfs", "quota", "-gq", groupName,
-                "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
+                                                 "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
         except subprocess.CalledProcessError:
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error
             quota = None
 
-        TEBI = 1024**4 # bytes in a tebibyte
+        TEBI = 1024**4  # bytes in a tebibyte
         if quota is not None:
             try:
                 consumption = "{} TiB of {} TiB ({}%)".format(
@@ -221,7 +226,7 @@ def processMpistat(mpi_file, tmp_db):
         if (volumeSize < 100*1024**2):
             try:
                 archivedDirs = scanDirectory(group_directories[volume][0] +
-                    groupName)
+                                             groupName)
             except FileNotFoundError:
                 pass
 
@@ -229,7 +234,7 @@ def processMpistat(mpi_file, tmp_db):
             if archivedDirs is None:
                 try:
                     archivedDirs = scanDirectory(group_directories[volume][1] +
-                        groupName)
+                                                 groupName)
                 except FileNotFoundError:
                     pass
         if (volumeSize == 0 and lastModified_unix == 0):
@@ -239,13 +244,14 @@ def processMpistat(mpi_file, tmp_db):
             db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
                 volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
                 VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
-                PI, volumeSize, volume, lastModified, quota, consumption,
-                archivedDirs, isHumgen))
+                                                                 PI, volumeSize, volume, lastModified, quota, consumption,
+                                                                 archivedDirs, isHumgen))
             tmp_db.commit()
 
     print("Processed data for {}.".format(volume))
 
     return volume
+
 
 def loadIntoMySQL(tmp_db, sql_db, tables, date):
     """
@@ -282,6 +288,7 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
     sql_db.commit()
     print("Report data for {} loaded into MySQL.".format(date))
 
+
 def createTsvReport(tmp_db, tables, date):
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
@@ -299,11 +306,11 @@ def createTsvReport(tmp_db, tables, date):
     with open(REPORT_DIR+"report-output-files/"+name, "w", newline="") as reportfile:
         # start a writer that will format the file as tab-separated
         report_writer = csv.writer(reportfile, delimiter="\t",
-            quoting = csv.QUOTE_NONE)
+                                   quoting=csv.QUOTE_NONE)
         # write column headers
         report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
-            "Used (bytes)", "Quota (bytes)", "Consumption",
-            "Last Modified (days)", "Archived Directories", "Is Humgen?"])
+                                "Used (bytes)", "Quota (bytes)", "Consumption",
+                                "Last Modified (days)", "Archived Directories", "Is Humgen?"])
 
         for table in tables:
             print("Inserting data for {}...".format(table))
@@ -315,7 +322,7 @@ def createTsvReport(tmp_db, tables, date):
                 # statement
 
                 # replace elements with no value with "-"
-                data = ["-" if x==None else x for x in row]
+                data = ["-" if x == None else x for x in row]
                 # replace SQLite 1/0 Booleans with True/False
                 if data[-1] == 0:
                     data[-1] = False
@@ -325,6 +332,7 @@ def createTsvReport(tmp_db, tables, date):
                 report_writer.writerow(data)
 
     print("{} created.".format(name))
+
 
 def main(date, mpistat_files):
     # temporary SQLite database used to organise data
@@ -347,7 +355,7 @@ def main(date, mpistat_files):
     # creates a process pool which will concurrently execute 4 processes
     # NOTE: If resources permit, change this to the number of mpistat files
     # that are going to be processed
-	# Make sure to change the bsub script to ask for more cores too
+    # Make sure to change the bsub script to ask for more cores too
     pool = multiprocessing.Pool(processes=4)
 
     print("Starting mpistat processors...")
@@ -371,8 +379,8 @@ def main(date, mpistat_files):
         raise e
 
     # finds the last modified date of some mpistat file
-    date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
-        REPORT_DIR+mpistat_files[0]).st_mtime) )
+    date_unix = datetime.datetime.utcfromtimestamp(int(os.stat(
+        REPORT_DIR+mpistat_files[0]).st_mtime))
 
     date = "{0:%Y-%m-%d}".format(date_unix)
 
@@ -389,6 +397,7 @@ def main(date, mpistat_files):
     os.remove(DATABASE_NAME)
     print("Done.")
 
+
 if __name__ == "__main__":
     # ignore first argument (the name of the script)
     # second argument is the date, all other arguments are file names
@@ -400,4 +409,3 @@ if __name__ == "__main__":
         exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
 
     main(date, mpistat_files)
-    

@@ -1,11 +1,13 @@
 import ldap
 
+
 def getLDAPConnection():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
     # Sanger internal LDAP is public so no credentials needed
-    con.bind("","")
+    con.bind("", "")
 
     return con
+
 
 def findGroups(ldap_con, tmp_db):
     """
@@ -17,8 +19,8 @@ def findGroups(ldap_con, tmp_db):
     """
 
     results = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-        ['cn', 'gidNumber', 'sangerProjectPI'])
+                                ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
+                                ['cn', 'gidNumber', 'sangerProjectPI'])
 
     db_cursor = tmp_db.cursor()
     # cn = groupName, sangerProjectPI['uid'] = PI's user id
@@ -32,7 +34,7 @@ def findGroups(ldap_con, tmp_db):
 
     for item in results:
         # gidNumber is stored as a byte-encoded string in results
-        gidNumber = int( item[1]['gidNumber'][0].decode('UTF-8') )
+        gidNumber = int(item[1]['gidNumber'][0].decode('UTF-8'))
         groupName = item[1]['cn'][0].decode('UTF-8')
 
         # not all groups have a PI, KeyError thrown in those cases
@@ -44,7 +46,7 @@ def findGroups(ldap_con, tmp_db):
             # first split = 'uid=[xyz]'
             # second split = '[xyz]'
             PIuid = PIdn.split(',')[0].split('=')[1]
-            PIuids.add( PIuid )
+            PIuids.add(PIuid)
         except KeyError:
             # nothing to do except skip the PI related code
             PIuid = None
@@ -58,12 +60,12 @@ def findGroups(ldap_con, tmp_db):
     # replaces uids in group_table with full surnames of the corresponding PI
     for uid in PIuids:
         surname_result = ldap_con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
-            ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
+                                           ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
 
         surname = surname_result[0][1]['sn'][0].decode('UTF-8')
 
         db_cursor.execute('''UPDATE group_table SET PI = ? WHERE PI = ?''',
-            (surname, uid))
+                          (surname, uid))
 
     # write prior UPDATEs to table, nothing needs returning
     tmp_db.commit()
