@@ -252,7 +252,7 @@ def main(date, mpistat_files):
     mpistat_files.sort()
 
     def _mpi_worker(mpistat_file):
-        processMpistat(mpistat_file, tmp_db)
+        return processMpistat(mpistat_file, tmp_db)
 
     # distribute input files to processes running instances of processMpistat()
     try:
