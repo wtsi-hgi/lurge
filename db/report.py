@@ -1,3 +1,42 @@
+import os
+
+import mysql.connector
+
+
+def getSQLConnection(config):
+    # connects to the MySQL server used to store the report data, change the
+    # credentials here to point at your desired database
+    port = config.PORT if config.PORT is None else 3306
+
+    db_con = mysql.connector.connect(
+        host=config.HOST,
+        database=config.DATABASE,
+        port=port,
+        user=config.USER,
+        passwd=config.PASSWORD
+    )
+
+    return db_con
+
+
+def checkReportDate(sql_db, date, db_name):
+    """
+    Checks the dates in the MySQL database, and stops the program if date 'date'
+    is already recorded.
+
+    :param sql_db: MySQL connection to check for reports
+    :param date: The date of the report to be produced
+    """
+    sql_cursor = sql_db.cursor()
+    sql_cursor.execute("""SELECT DISTINCT `date` FROM lustre_usage""")
+
+    for result in sql_cursor:
+        if (date == result):
+            os.remove(db_name)
+            raise FileExistsError("Report for date {} already found in MySQL database! \
+                Exiting.".format(date))
+
+
 def loadIntoMySQL(tmp_db, sql_db, tables, date):
     """
     Reads the contents of tables in tmp_db and writes them to a MySQL database.
@@ -12,7 +51,7 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
 
     # First, get foreign keys from the MySQL database for PI, Volume and Unix Group
     # We'll also have to add any that don't exist
-    # 
+    #
     # Then, we can go over all the data from the tmp_db and put it into the main db
 
     # iterates over each row in each SQLite table, and just moves the data over

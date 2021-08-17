@@ -9,10 +9,10 @@ import gzip
 import sys
 
 import ldap
-import mysql.connector
 
 import db.report
 import utils.ldap
+import utils.tsv
 
 # importing report_config.py file, not a library
 import report_config as config
@@ -30,41 +30,6 @@ DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
 # report directory where the lastest mpistat output file can be found
 # and where the report file will be placed
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
-
-
-def checkReportDate(sql_db, date):
-    """
-    Checks the dates in the MySQL database, and stops the program if date 'date'
-    is already recorded.
-
-    :param sql_db: MySQL connection to check for reports
-    :param date: The date of the report to be produced
-    """
-    sql_cursor = sql_db.cursor()
-    sql_cursor.execute("""SELECT DISTINCT `date` FROM lustre_usage""")
-
-    for result in sql_cursor:
-        if (date == result):
-            global DATABASE_NAME
-            os.remove(DATABASE_NAME)
-            raise FileExistsError("Report for date {} already found in MySQL database! \
-                Exiting.".format(date))
-
-
-def getSQLConnection():
-    # connects to the MySQL server used to store the report data, change the
-    # credentials here to point at your desired database
-    port = config.PORT if config.PORT is None else 3306
-
-    db_con = mysql.connector.connect(
-        host=config.HOST,
-        database=config.DATABASE,
-        port=port,
-        user=config.USER,
-        passwd=config.PASSWORD
-    )
-
-    return db_con
 
 
 def scanDirectory(directory):
@@ -256,60 +221,15 @@ def processMpistat(mpi_file, tmp_db):
     return volume
 
 
-def createTsvReport(tmp_db, tables, date):
-    """
-    Reads the contents of tables in tmp_db and writes them to a .tsv formatted
-    file.
-
-    :param tmp_db: SQLite database from which to fetch data
-    :param tables: List of table names to read
-    :param date: Date string of the data to be used (ie, "2019-09-20")
-    """
-    # sets filename to 'report-YYYYMMDD.tsv'
-    name = "report-{}.tsv".format(date.replace("-", ""))
-    db_cursor = tmp_db.cursor()
-
-    global REPORT_DIR
-    with open(REPORT_DIR+"report-output-files/"+name, "w", newline="") as reportfile:
-        # start a writer that will format the file as tab-separated
-        report_writer = csv.writer(reportfile, delimiter="\t",
-                                   quoting=csv.QUOTE_NONE)
-        # write column headers
-        report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
-                                "Used (bytes)", "Quota (bytes)", "Consumption",
-                                "Last Modified (days)", "Archived Directories", "Is Humgen?"])
-
-        for table in tables:
-            print("Inserting data for {}...".format(table))
-            db_cursor.execute('''SELECT volume, PI, groupName, volumeSize,
-                quota, consumption, lastModified, archivedDirs, isHumgen FROM {}
-                ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
-            for row in db_cursor:
-                # row elements are ordered like the column names in the select
-                # statement
-
-                # replace elements with no value with "-"
-                data = ["-" if x == None else x for x in row]
-                # replace SQLite 1/0 Booleans with True/False
-                if data[-1] == 0:
-                    data[-1] = False
-                else:
-                    data[-1] = True
-
-                report_writer.writerow(data)
-
-    print("{} created.".format(name))
-
-
 def main(date, mpistat_files):
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
     print("Establishing MySQL connection...")
-    sql_db = getSQLConnection()
+    sql_db = db.report.getSQLConnection(config)
 
     try:
-        checkReportDate(sql_db, date)
+        db.report.checkReportDate(sql_db, date, DATABASE_NAME)
     except FileExistsError:
         return
 
@@ -355,7 +275,7 @@ def main(date, mpistat_files):
     db.report.loadIntoMySQL(tmp_db, sql_db, tables, date)
 
     print("Writing report data to .tsv file...")
-    createTsvReport(tmp_db, tables, date)
+    utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR)
 
     print("Cleaning up...")
     sql_db.close()
