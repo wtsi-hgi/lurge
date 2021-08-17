@@ -7,7 +7,7 @@ import mysql.connector
 def getSQLConnection(config):
     # connects to the MySQL server used to store the report data, change the
     # credentials here to point at your desired database
-    port = config.PORT if config.PORT is None else 3306
+    port = config.PORT if config.PORT is not None else 3306
 
     db_con = mysql.connector.connect(
         host=config.HOST,
@@ -29,7 +29,7 @@ def checkReportDate(sql_db, date, db_name):
     :param date: The date of the report to be produced
     """
     sql_cursor = sql_db.cursor()
-    sql_cursor.execute("""SELECT DISTINCT `date` FROM lustre_usage""")
+    sql_cursor.execute("SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage")
 
     for result in sql_cursor:
         if (date == result):

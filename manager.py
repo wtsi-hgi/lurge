@@ -29,7 +29,10 @@ def all_exists(mpi_date: str) -> bool:
 
 def main(mode: str) -> None:
     # Remove any leftover sqlite files
-    os.remove(f"{REPORT_DIR}_lurge_tmp_sqlite.db")
+    try:
+        os.remove(f"{REPORT_DIR}_lurge_tmp_sqlite.db")
+    except FileNotFoundError:
+        pass
 
     days_ago: int = 0
     success: int = 0
@@ -91,8 +94,7 @@ def main(mode: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2:
-        if sys.argv[1] in ["inspector", "report"]:
-            main(sys.argv[1])
-
-    sys.exit("Must be run in form: python manager.py {report|inspector}")
+    if len(sys.argv) == 2 and sys.argv[1] in ["inspector", "report"]:
+        main(sys.argv[1])
+    else:
+        sys.exit("Must be run in form: python manager.py {report|inspector}")

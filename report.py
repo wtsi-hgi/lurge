@@ -47,7 +47,7 @@ def scanDirectory(directory):
     return None
 
 
-def processMpistat(mpi_file, tmp_db):
+def processMpistat(mpi_file):
     """
     Processes a single mpistat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
@@ -223,6 +223,7 @@ def processMpistat(mpi_file, tmp_db):
 
 def main(date, mpistat_files):
     # temporary SQLite database used to organise data
+    global tmp_db
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
     print("Establishing MySQL connection...")
@@ -251,12 +252,9 @@ def main(date, mpistat_files):
     # having an ordered multiprocess output later.
     mpistat_files.sort()
 
-    def _mpi_worker(mpistat_file):
-        return processMpistat(mpistat_file, tmp_db)
-
     # distribute input files to processes running instances of processMpistat()
     try:
-        tables = pool.map(_mpi_worker, mpistat_files)
+        tables = pool.map(processMpistat, mpistat_files)
         pool.close()
         pool.join()
     except Exception as e:
