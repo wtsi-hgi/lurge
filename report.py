@@ -56,7 +56,7 @@ def processMpistat(mpi_file, tmp_db):
     """
 
     db_cursor = tmp_db.cursor()
-    db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
+    db_cursor('''SELECT gidNumber, groupName, PI FROM group_table''')
 
     volume = f"scratch{mpi_file.split('.')[0].split('-')[1]}"
 
