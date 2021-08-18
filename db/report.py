@@ -98,7 +98,7 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
                         "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (?);", pi_name)
                     sql_cursor.execute(
                         "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", pi_name)
-                    (pi) = sql_cursor.fetchone()
+                    (pi,) = sql_cursor.fetchone()
                     pis[pi_name] = pi
             else:
                 pi = None
@@ -116,7 +116,7 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
                     "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", volume)
                 sql_cursor.execute(
                     "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", volume)
-                (volume_id) = sql_cursor.fetchone()
+                (volume_id,) = sql_cursor.fetchone()
                 volumes[volume] = volume_id
 
             # Add our data
