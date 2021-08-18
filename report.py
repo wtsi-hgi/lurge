@@ -176,17 +176,6 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
             quota = None
 
         TEBI = 1024**4  # bytes in a tebibyte
-        if quota is not None:
-            try:
-                consumption = "{} TiB of {} TiB ({}%)".format(
-                    round(volumeSize/TEBI, 1), round(quota/TEBI, 1),
-                    round(volumeSize/quota * 100, 1))
-            except ZeroDivisionError:
-                # this happens sometimes, when quota is 0
-                consumption = "{} TiB (Unlimited)".format(
-                    round(volumeSize/TEBI, 1))
-        else:
-            consumption = "{} TiB".format(round(volumeSize/TEBI, 1))
 
         archivedDirs = None
         # only check whether a volume is archived if it's smaller than 100MiB,
@@ -210,7 +199,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
             pass
         else:
             group_data.append((gidNumber, groupName, PI, volumeSize, volume,
-                              lastModified, quota, consumption, archivedDirs, isHumgen))
+                              lastModified, quota, archivedDirs, isHumgen))
 
     print("Processed data for {}.".format(volume), flush=True)
 
@@ -224,7 +213,7 @@ def generate_tables(tmp_db: sqlite3.Connection):
         db_cursor.execute(f"""
             CREATE TABLE scratch{vol} (gidNumber INTEGER PRIMARY KEY,
             groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
-            lastModified INTEGER, quota INTEGER, consumption TEXT,
+            lastModified INTEGER, quota INTEGER,
             archivedDirs TEXT, isHumgen INTEGER)
         """)
         tmp_db.commit()
@@ -283,12 +272,12 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
     print("adding data to temporary database")
     for entry in group_data:
         (gidNumber, groupName, PI, volumeSize, volume, lastModified,
-         quota, consumption, archivedDirs, isHumgen) = entry
+         quota, archivedDirs, isHumgen) = entry
         db_cursor.execute("""INSERT INTO {} (gidNumber, groupName, PI,
-                    volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)""".format(volume),
+                    volumeSize, volume, lastModified, quota, archivedDirs, isHumgen)
+                    VALUES (?,?,?,?,?,?,?,?,?)""".format(volume),
                           (gidNumber, groupName,
-                           PI, volumeSize, volume, lastModified, quota, consumption,
+                           PI, volumeSize, volume, lastModified, quota,
                            archivedDirs, isHumgen)
                           )
 
