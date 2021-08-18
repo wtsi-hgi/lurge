@@ -31,6 +31,8 @@ DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
 # and where the report file will be placed
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 
+VOLUMES = [114, 115, 118, 119, 123]
+
 
 def scanDirectory(directory):
     """
@@ -55,13 +57,16 @@ def processMpistat(mpi_file):
     :param mpi_file: File name of mpistat output file to process
     """
 
+    tmp_db = sqlite3.connect(DATABASE_NAME)
+
     db_cursor = tmp_db.cursor()
-    db_cursor('''SELECT gidNumber, groupName, PI FROM group_table''')
+    db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
+    result = db_cursor.fetchmany()
 
     volume = f"scratch{mpi_file.split('.')[0].split('-')[1]}"
 
     groups = {}
-    for row in db_cursor:
+    for row in result:
         # rearranging into a more usable format, since each row is in the
         # form (gid, "groupname", "PIname")
         gid, groupName, PIname = row
@@ -98,7 +103,7 @@ def processMpistat(mpi_file):
             if (datetime.datetime.now() - starttime).seconds > 30:
                 starttime = datetime.datetime.now()
                 print("{:%H:%M:%S}: {} records processed for {}".format(
-                    starttime, lines_processed, volume))
+                    starttime, lines_processed, volume), flush=True)
 
             line = line.split()
 
@@ -129,15 +134,10 @@ def processMpistat(mpi_file):
 
             lines_processed += 1
 
-    # creates new table named after the volume being analysed (ie, scratch114)
-    db_cursor.execute('''CREATE TABLE {} (gidNumber INTEGER PRIMARY KEY,
-        groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
-        lastModified INTEGER, quota INTEGER, consumption TEXT,
-        archivedDirs TEXT, isHumgen INTEGER)'''.format(volume))
-
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
     mpistat_date_unix = int(os.stat(REPORT_DIR+mpi_file).st_mtime)
+    group_data = []
     for gid in groups:
         gidNumber = gid
         groupName = groups[gid]['groupName']
@@ -209,21 +209,30 @@ def processMpistat(mpi_file):
             # not a useful entry, ignore it
             pass
         else:
-            db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
-                volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
-                VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
-                                                                 PI, volumeSize, volume, lastModified, quota, consumption,
-                                                                 archivedDirs, isHumgen))
-            tmp_db.commit()
+            group_data.append((gidNumber, groupName, PI, volumeSize, volume,
+                              lastModified, quota, consumption, archivedDirs, isHumgen))
 
-    print("Processed data for {}.".format(volume))
+    print("Processed data for {}.".format(volume), flush=True)
 
-    return volume
+    return (volume, group_data)
+
+
+def generate_tables(tmp_db):
+    db_cursor = tmp_db.cursor()
+    for vol in VOLUMES:
+        print(f"Creating table scratch{vol}")
+        db_cursor.execute(f"""
+            CREATE TABLE scratch{vol} (gidNumber INTEGER PRIMARY KEY,
+            groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
+            lastModified INTEGER, quota INTEGER, consumption TEXT,
+            archivedDirs TEXT, isHumgen INTEGER)
+        """)
+        tmp_db.commit()
+    print("created tables")
 
 
 def main(date, mpistat_files):
     # temporary SQLite database used to organise data
-    global tmp_db
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
     print("Establishing MySQL connection...")
@@ -240,13 +249,16 @@ def main(date, mpistat_files):
     print("Collecting group information...")
     utils.ldap.findGroups(ldap_con, tmp_db)
 
+    # Create the tables in the temporary DB
+    generate_tables(tmp_db)
+
     # creates a process pool which will concurrently execute 4 processes
     # NOTE: If resources permit, change this to the number of mpistat files
     # that are going to be processed
     # Make sure to change the bsub script to ask for more cores too
-    pool = multiprocessing.Pool(processes=4)
+    pool = multiprocessing.Pool(processes=5)
 
-    print("Starting mpistat processors...")
+    print("Starting mpistat processors...", flush=True)
     # sorts file list alphabetically, so that the volumes are in the same order
     # regardless of how the script arguments are given. This is useful for
     # having an ordered multiprocess output later.
@@ -254,7 +266,7 @@ def main(date, mpistat_files):
 
     # distribute input files to processes running instances of processMpistat()
     try:
-        tables = pool.map(processMpistat, mpistat_files)
+        mpi_data = pool.map(processMpistat, mpistat_files)
         pool.close()
         pool.join()
     except Exception as e:
@@ -262,6 +274,26 @@ def main(date, mpistat_files):
         tmp_db.close()
         os.remove(DATABASE_NAME)
         raise e
+
+    tables = [x[0] for x in mpi_data]
+    group_data = [x for y in mpi_data for x in y[1]]
+
+    db_cursor = tmp_db.cursor()
+
+    print("adding data to temporary database")
+    for entry in group_data:
+        (gidNumber, groupName, PI, volumeSize, volume, lastModified,
+         quota, consumption, archivedDirs, isHumgen) = entry
+        db_cursor.execute("""INSERT INTO {} (gidNumber, groupName, PI,
+                    volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)""".format(volume),
+                          (gidNumber, groupName,
+                           PI, volumeSize, volume, lastModified, quota, consumption,
+                           archivedDirs, isHumgen)
+                          )
+
+    tmp_db.commit()
+    print("added data to temporary database")
 
     # finds the last modified date of some mpistat file
     date_unix = datetime.datetime.utcfromtimestamp(int(os.stat(

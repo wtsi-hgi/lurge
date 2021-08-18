@@ -29,7 +29,8 @@ def checkReportDate(sql_db, date, db_name):
     :param date: The date of the report to be produced
     """
     sql_cursor = sql_db.cursor()
-    sql_cursor.execute("SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage")
+    sql_cursor.execute(
+        "SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage")
 
     for result in sql_cursor:
         if (date == result):
@@ -65,10 +66,9 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
     sql_cursor.execute("SELECT * FROM hgi_lustre_usage_new.unix_group")
     group_results = sql_cursor.fetchall()
 
-    groups = defaultdict(__dict__)
-    for (group_id, group_name, isHumgen) in group_results:    
-        groups[group_name][isHumgen] == group_id
-
+    groups = defaultdict(dict)
+    for (group_id, group_name, isHumgen) in group_results:
+        groups[group_name][isHumgen] = group_id
 
     # Volumes
     sql_cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
@@ -77,7 +77,6 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
     volumes = {}
     for (volume_id, volume_name) in volume_results:
         volumes[volume_name] = volume_id
-
 
     # Then, we can go over all the data from the tmp_db and put it into the main db
 
@@ -88,42 +87,48 @@ def loadIntoMySQL(tmp_db, sql_db, tables, date):
         tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
             consumption, lastModified, archivedDirs, isHumgen FROM {}
             ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
-        for (volume, pi_name, group, size, quota, last_mod, archived, isHumgen) in tmp_cursor:
+        for (volume, pi_name, group, size, quota, _, last_mod, archived, isHumgen) in tmp_cursor:
 
             # Making sure the PI, Group and Volume all exist in the DB
             if pi_name is not None:
                 try:
                     pi = pis[pi_name]
                 except KeyError:
-                    sql_cursor.execute("INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (?);", pi_name)
-                    sql_cursor.execute("SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", pi_name)
+                    sql_cursor.execute(
+                        "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (?);", pi_name)
+                    sql_cursor.execute(
+                        "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", pi_name)
                     (pi) = sql_cursor.fetchone()
                     pis[pi_name] = pi
             else:
                 pi = None
 
             if group not in groups or isHumgen not in groups[group]:
-                sql_cursor.execute("INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (group, isHumgen))
-                sql_cursor.execute("SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = %s;", (group, isHumgen))
-                (group_id) = sql_cursor.fetchone()
-                groups[group_name][isHumgen] = group_id
-            
+                sql_cursor.execute(
+                    "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (group, isHumgen))
+                sql_cursor.execute(
+                    "SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = %s;", (group, isHumgen))
+                (group_id,) = sql_cursor.fetchone()
+                groups[group][isHumgen] = group_id
+
             if volume not in volumes:
-                sql_cursor.execute("INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", volume)
-                sql_cursor.execute("SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", volume)
+                sql_cursor.execute(
+                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", volume)
+                sql_cursor.execute(
+                    "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", volume)
                 (volume_id) = sql_cursor.fetchone()
                 volumes[volume] = volume_id
 
             # Add our data
             query = """INSERT INTO hgi_lustre_usage_new.lustre_usage (used, quota, record_date, archived,
-                last_modified, pi_id, unix_id, volume_id) VALUES (%d, %d, %s, %s, %d, %d, %d, %d);"""
+                last_modified, pi_id, unix_id, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
 
             sql_cursor.execute(query, (
-                size, 
-                quota, 
-                date, 
+                size,
+                quota,
+                date,
                 archived is not None,
-                last_mod, 
+                last_mod,
                 pi,
                 groups[group][isHumgen],
                 volumes[volume]
