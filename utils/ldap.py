@@ -1,7 +1,9 @@
+import sqlite3
 import ldap
+import typing as T
 
 
-def getLDAPConnection():
+def getLDAPConnection() -> ldap.LDAPObject:
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
     # Sanger internal LDAP is public so no credentials needed
     con.bind("", "")
@@ -9,7 +11,7 @@ def getLDAPConnection():
     return con
 
 
-def findGroups(ldap_con, tmp_db):
+def findGroups(ldap_con: ldap.LDAPObject, tmp_db: sqlite3.Connection) -> None:
     """
     Finds Humgen groups using LDAP and writes the group ID number, group name,
     and corresponding PI's surname to table 'group_table' in tmp_db.
@@ -18,7 +20,7 @@ def findGroups(ldap_con, tmp_db):
     :param tmp_db: SQLite database connection object to write 'group_table' to
     """
 
-    results = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+    results: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                                 ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
                                 ['cn', 'gidNumber', 'sangerProjectPI'])
 
@@ -30,7 +32,7 @@ def findGroups(ldap_con, tmp_db):
 
     # used to collect every PI uid that needs to be resolved, use of set means
     # that duplicate uids are ignored
-    PIuids = set()
+    PIuids: T.Set[str] = set()
 
     for item in results:
         # gidNumber is stored as a byte-encoded string in results
@@ -59,7 +61,7 @@ def findGroups(ldap_con, tmp_db):
 
     # replaces uids in group_table with full surnames of the corresponding PI
     for uid in PIuids:
-        surname_result = ldap_con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
+        surname_result: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
                                            ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
 
         surname = surname_result[0][1]['sn'][0].decode('UTF-8')

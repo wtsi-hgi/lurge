@@ -1,7 +1,9 @@
 import csv
+import sqlite3
+import typing as T
 
 
-def createTsvReport(tmp_db, tables, date, report_dir):
+def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, report_dir: str) -> None:
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
     file.

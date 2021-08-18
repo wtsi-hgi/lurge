@@ -1,12 +1,12 @@
 import os
 import re
 import datetime
-import csv
 import subprocess
 import multiprocessing
 import sqlite3
 import gzip
 import sys
+import typing as T
 
 import ldap
 
@@ -17,7 +17,7 @@ import utils.tsv
 # importing report_config.py file, not a library
 import report_config as config
 
-# This script should be executed by reportmanager.sh. If you want to run it
+# This script should be executed by manager.py. If you want to run it
 # directly, you need to execute it like so:
 # python3 report.py [date] [filename list]
 # [date] needs to be an ISO date string (ie, "2019-09-21")
@@ -34,7 +34,7 @@ REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 VOLUMES = [114, 115, 118, 119, 123]
 
 
-def scanDirectory(directory):
+def scanDirectory(directory: str) -> T.Optional[str]:
     """
     processMpistat helper function. Scans 'directory' for .imirrored, and returns
     the directory if it was found and None otherwise.
@@ -49,7 +49,7 @@ def scanDirectory(directory):
     return None
 
 
-def processMpistat(mpi_file):
+def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     """
     Processes a single mpistat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
@@ -65,7 +65,7 @@ def processMpistat(mpi_file):
 
     volume = f"scratch{mpi_file.split('.')[0].split('-')[1]}"
 
-    groups = {}
+    groups: T.Dict[str, T.Dict[str, T.Any]] = {}
     for row in result:
         # rearranging into a more usable format, since each row is in the
         # form (gid, "groupname", "PIname")
@@ -81,7 +81,7 @@ def processMpistat(mpi_file):
     lines_processed = 0
     print("Opening {} for reading...".format(mpi_file))
     # directories with group directories to scan for .imirrored
-    group_directories = {
+    group_directories: T.Dict[str, T.List[str]] = {
         'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
         'scratch115': ["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
         'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
@@ -137,10 +137,10 @@ def processMpistat(mpi_file):
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
     mpistat_date_unix = int(os.stat(REPORT_DIR+mpi_file).st_mtime)
-    group_data = []
+    group_data: T.List[T.Tuple[T.Any, ...]] = []
     for gid in groups:
         gidNumber = gid
-        groupName = groups[gid]['groupName']
+        groupName: str = groups[gid]['groupName']
 
         # updates the group names for groups discovered during mpistat crawl
         if (groupName == None):
@@ -217,7 +217,7 @@ def processMpistat(mpi_file):
     return (volume, group_data)
 
 
-def generate_tables(tmp_db):
+def generate_tables(tmp_db: sqlite3.Connection):
     db_cursor = tmp_db.cursor()
     for vol in VOLUMES:
         print(f"Creating table scratch{vol}")
@@ -231,7 +231,7 @@ def generate_tables(tmp_db):
     print("created tables")
 
 
-def main(date, mpistat_files):
+def main(date: str, mpistat_files: T.List[str]) -> None:
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
