@@ -21,8 +21,8 @@ def findGroups(ldap_con: ldap.LDAPObject, tmp_db: sqlite3.Connection) -> None:
     """
 
     results: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                                ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-                                ['cn', 'gidNumber', 'sangerProjectPI'])
+                                                             ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
+                                                             ['cn', 'gidNumber', 'sangerProjectPI'])
 
     db_cursor = tmp_db.cursor()
     # cn = groupName, sangerProjectPI['uid'] = PI's user id
@@ -62,7 +62,7 @@ def findGroups(ldap_con: ldap.LDAPObject, tmp_db: sqlite3.Connection) -> None:
     # replaces uids in group_table with full surnames of the corresponding PI
     for uid in PIuids:
         surname_result: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
-                                           ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
+                                                                        ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
 
         surname = surname_result[0][1]['sn'][0].decode('UTF-8')
 
