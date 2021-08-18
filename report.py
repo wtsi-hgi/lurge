@@ -175,8 +175,6 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
             # quotas can't be checked and the above command throws an error
             quota = None
 
-        TEBI = 1024**4  # bytes in a tebibyte
-
         archivedDirs = None
         # only check whether a volume is archived if it's smaller than 100MiB,
         # any larger than that and it's very likely to still be in use
