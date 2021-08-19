@@ -22,13 +22,13 @@ def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, 
                                    quoting=csv.QUOTE_NONE)
         # write column headers
         report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
-                                "Used (bytes)", "Quota (bytes)", "Consumption",
+                                "Used (bytes)", "Quota (bytes)",
                                 "Last Modified (days)", "Archived Directories", "Is Humgen?"])
 
         for table in tables:
             print("Inserting data for {}...".format(table))
             db_cursor.execute('''SELECT volume, PI, groupName, volumeSize,
-                quota, consumption, lastModified, archivedDirs, isHumgen FROM {}
+                quota, lastModified, archivedDirs, isHumgen FROM {}
                 ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
             for row in db_cursor:
                 # row elements are ordered like the column names in the select

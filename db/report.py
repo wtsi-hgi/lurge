@@ -87,9 +87,9 @@ def loadIntoMySQL(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConne
     for table in tables:
         print("Inserting data for {}...".format(table))
         tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
-            consumption, lastModified, archivedDirs, isHumgen FROM {}
+            lastModified, archivedDirs, isHumgen FROM {}
             ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
-        for (volume, pi_name, group, size, quota, _, last_mod, archived, isHumgen) in tmp_cursor:
+        for (volume, pi_name, group, size, quota, last_mod, archived, isHumgen) in tmp_cursor:
 
             # Making sure the PI, Group and Volume all exist in the DB
             if pi_name is not None:
