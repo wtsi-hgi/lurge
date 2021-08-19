@@ -1,32 +1,22 @@
-#!/usr/bin/env python3
-
-import gzip
-import base64
-import re
 import argparse
-import pathlib
-import datetime
-import sys
-import os
-import multiprocessing
-
+import base64
+import gzip
 from itertools import repeat
+import multiprocessing
+import pathlib
+import re
+import typing as T
 
-import ldap
-import mysql.connector
+import db.common
+import db.inspector
+import utils.finder
+import utils.ldap
+import utils.table
 
-# report_config.py is a SQL credentials file, not a library
+from types.directory_report import DirectoryReport
+
 import report_config as config
 
-# TODO: find more sophisticated way to detect bam/cram/vcf files
-bam = re.compile("\.(bam|sam)(\.gz)?$")
-cram = re.compile("\.cram(\.gz)?$")
-vcf = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
-pedbed = re.compile("\.(ped|bed)(\.gz)?$")
-
-REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
-# put any link mappings here, the program only scans mpistat filenames so it can't
-# resolve symbolic links
 PROJECT_DIRS = {
     'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
     'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
@@ -41,504 +31,258 @@ ALL_PROJECTS = {
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"]
 }
 
-parser = argparse.ArgumentParser(
-    description="Creates a tab-separated table summarising disk usage of a project directory, and the total size of BAM/CRAM/VCF/BED/PED files inside.")
-
-parser.add_argument('--depth', '-d', nargs='?', type=int, default=2,
-                    help="The depth of the output. A depth of 0 shows the summary for the root path only, a depth of 1 shows the summary for each subdirectory, and a depth of 2 also shows summaries for the children of the subdirectories. Set to 2 by default.")
-
-parser.add_argument('--generic', dest="mode", action="store_const", const="general", default="project",
-                    help="Make the output generic. When this flag is used, the output will have fewer redundant columns, and the Project/Directory column will be replaced by a single Path. Use when scanning paths that aren't project directories.")
-
-parser.add_argument('--noheader', dest="header", action="store_const", const=False, default=True,
-                    help="Don't print the column header.")
-
-parser.add_argument('--tosql', dest="tosql", action="store_const",
-                    const=True, default=False,
-                    help="In addition to printing the result to stdout, this flag will make the program write the output directly to a MySQL database. This will only work when no path is given.")
-
-parser.add_argument('path', nargs='?',
-                    help="The path to scan. The final directory in the path is considered the root. Leave empty to scan HGI project directories on different volumes all at the same time.")
+# Regexs for File Types
+BAM = re.compile("\.(bam|sam)(\.gz)?$")
+CRAM = re.compile("\.cram(\.gz)?$")
+VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
+PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
 
 
-def humanise(number):
-    """Converts bytes to human-readable string."""
-    if number/2**10 < 1:
-        return "{}".format(number)
-    elif number/2**20 < 1:
-        return "{} KiB".format(round(number/2**10, 2))
-    elif number/2**30 < 1:
-        return "{} MiB".format(round(number/2**20, 2))
-    elif number/2**40 < 1:
-        return "{} GiB".format(round(number/2**30, 2))
-    elif number/2**50 < 1:
-        return "{} TiB".format(round(number/2**40, 2))
-    else:
-        return "{} PiB".format(round(number/2**50, 2))
+def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int) -> T.Dict[str, T.Any]:
+    """Returns a dictionary mapping paths to objects of properties
 
-
-def getParents(dir):
-    """Returns list of directories which are a parent to 'dir'"""
-    split_dir = dir.split("/")
-    parents = []
-
-    for i in range(1, len(split_dir)):
-        parents.append("/".join(split_dir[0:i]))
-
-    return parents
-
-
-def findReport(dir):
-    """Finds most recent mpistat output relevant to 'dir'"""
-    report_date = datetime.date.today()
-    # NOTE: this assumes dir is always /lustre/scratchXYZ, which it should be
-    # unless infrastructure changes
-    volume = dir[-3:]
-    success = False
-    filename = ""
-
-    while success is False:
-        filename = "{}_{}.dat.gz".format(
-            report_date.strftime("%Y%m%d"), volume)
-        try:
-            gzip.open(REPORT_DIR+filename, 'rt')
-            success = True
-        except FileNotFoundError:
-            success = False
-            report_date -= datetime.timedelta(days=1)
-
-    if report_date != datetime.date.today():
-        print("Warning, couldn't find mpistat output for today. Used mpistat output for {0:%Y-%m-%d} instead.".format(
-            report_date), file=sys.stderr)
-
-    return REPORT_DIR+filename
-
-
-def getHumgenNames():
-    con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
-    con.bind('', '')
-
-    results = con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                           ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-                           ['gidNumber', 'sangerProjectPI', 'cn'])
-
-    groups_pis = {}
-    groups_names = {}
-
-    for entry in results:
-        gid = entry[1]['gidNumber'][0].decode("UTF-8", "replace")
-        PIuid = entry[1]['sangerProjectPI'][0].decode("UTF-8", "replace")
-        group_name = entry[1]['cn'][0].decode("UTF-8", "replace")
-        groups_pis[gid] = PIuid
-        groups_names[gid] = group_name
-
-    PIs = set(groups_pis.values())
-    uid_sn = {}
-
-    for PIuid in PIs:
-        _uid = PIuid.split(',')[0].split('=')[1]
-        result = con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
-                              ldap.SCOPE_ONELEVEL, "(uid={})".format(_uid), ['sn'])
-
-        surname = result[0][1]['sn'][0].decode("UTF-8")
-        uid_sn[PIuid] = surname
-
-    for gid in groups_pis:
-        surname = uid_sn[groups_pis[gid]]
-        groups_pis[gid] = surname
-
-    return (groups_pis, groups_names)
-
-
-def createMapping(path, names, depth):
+    @param path - List of paths to root directories to scan from
+    @param names - Tuple of dictionaries mapping group IDs to the group name and PI
+    @param depth - How many levels below the root to scan
     """
-    Returns a dictionary mapping paths to a dictionary of properties.
 
-    @param path Path to the root directory which the program will scan for
-    @param names Dictionary mapping group IDs to the group name and
-        surname of their PI
-    @param depth How many levels below the root to scan
-    """
-    FULL_PATH = path
-    HUMGEN_PIS, HUMGEN_GROUPS = names
-    DEPTH = depth
+    humgen_pis, humgen_groups = names
 
-    # the scratch and root_parent values are the same for every project/team
-    # directory pair
-    if type(path) == list:
-        segmented_path = FULL_PATH[0].split("/")
-    else:
-        segmented_path = FULL_PATH.split("/")
-        # the single path string is put in a list for the sake of convenience
-        FULL_PATH = [FULL_PATH]
-
-    # assuming we start with /lustre/scratch114/projects, we get
-    # /lustre/scratch114
-    scratch = "/".join(segmented_path[0:2])
-    # /lustre/scratch114/
+    segmented_path = paths[0].split("/")
+    scratch_disk = "/".join(segmented_path[0:2])
     root_parent = "/".join(segmented_path[0:-1])
+    report_path = utils.finder.findReport(scratch_disk)
 
-    report_path = findReport(scratch)
-    # used to check last modified time against time mpistat output ran
-    MPI_DATE = int(os.stat(report_path).st_mtime)
+    directory_reports: T.Dict[str, DirectoryReport] = {}
 
-    dir_dict = {}
-
-    lines = 0
-    print("Reading mpistat output for {}".format(scratch), file=sys.stderr)
-    with gzip.open(report_path, 'rt') as mpistat:
+    print(f"Reading mpistat output {report_path}")
+    lines_read = 0
+    with gzip.open(report_path, "rt") as mpistat:
         for line in mpistat:
-            lines += 1
-            if lines % 500000 == 0:
-                print("{} lines read (volume {})".format(lines, scratch),
-                      file=sys.stderr)
-            line = line.split()
+            lines_read += 1
+            if lines_read % 20000000 == 0:
+                print(f"Read {lines_read} from mpistat for {scratch_disk}")
+            line_info = line.split()
 
-            entry_path = base64.b64decode(line[0]).decode(
+            """
+            Line Info (layout from mpistat file)
+            Index   Item
+            0       File Path (base 64 encoded)
+            1       Size (bytes)
+            2       Owner (User ID)
+            3       Group (Group ID)
+            4       Last Accessed Time (Unix)
+            5       Last Modified Time (Unix)
+            6       Last Changed Time (Unix)
+            7       File Type (f = file, d = directory)
+            8       Inode ID
+            9       Number of Hardlinks
+            10      Device ID
+            """
+
+            entry_path = base64.b64decode(line_info[0]).decode(
                 "UTF-8", "replace").strip("/")
 
-            # if the entry path doesn't contain any of the target directories,
-            # it's skipped and the next entry is read
-            skip = True
-            for path in FULL_PATH:
+            # If the entry path doesn't contain a target directory
+            # then we don't care about the entry, and its skipped
+            for path in paths:
                 if re.match(path, entry_path) is not None:
-                    skip = False
-
-            if skip:
+                    break
+            else:
                 continue
 
-            # removes everything above the root directory from the path
-            short_path = re.sub(root_parent, '', entry_path).strip("/")
+            short_path = re.sub(root_parent, "", entry_path).strip("/")
 
-            if line[7] == "d":
-                _dir = short_path.split("/")[0:-1]
+            _dir = short_path.split("/")[:-1]
 
-                try:
-                    if _dir[2].lower() == "users":
-                        dir = "/".join(short_path.split("/")[0:DEPTH+1])
-                    else:
-                        dir = "/".join(short_path.split("/")[0:DEPTH])
-                except IndexError:
-                    dir = "/".join(short_path.split("/")[0:DEPTH])
+            # Just use the directory if its a file
+            if line_info[7] == "f":
+                _dir = _dir[:-1]
 
-                if line[3] in HUMGEN_PIS.keys():
-                    pi = HUMGEN_PIS[line[3]]
-                else:
-                    pi = "-"
+            # Go a level deeper if users directory
+            try:
+                _depth = depth + 1 if _dir[2].lower() == "users" else depth
+            except IndexError:
+                _depth = depth
 
-                if line[3] in HUMGEN_GROUPS.keys():
-                    group_name = HUMGEN_GROUPS[line[3]]
-                else:
-                    group_name = "-"
+            directory = "/".join(short_path.split("/")[:_depth])
 
-                if dir not in dir_dict.keys():
-                    dir_dict[dir] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 1, "mtime": int(
-                        line[5]), "pi": pi, "group_name": group_name, "volume": scratch[-3:]}
+            # Directory
+            if line_info[7] == "d":
 
-                    for parent in getParents(dir):
-                        if parent not in dir_dict.keys():
-                            dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 1, "mtime": int(
-                                line[5]), "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
+                pi = humgen_pis[line_info[3]
+                                ] if line_info[3] in humgen_pis else None
+                group = humgen_groups[line_info[3]
+                                      ] if line_info[3] in humgen_groups else None
 
-                dir_dict[dir]["pi"] = pi
-                dir_dict[dir]["group_name"] = group_name
+                if directory not in directory_reports:
+                    directory_reports[directory] = DirectoryReport(
+                        files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
+                    for parent in utils.finder.getParents(directory):
+                        if parent not in directory_reports:
+                            directory_reports[parent] = DirectoryReport(
+                                files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
 
-            elif line[7] == "f":
-                _dir = short_path.split("/")[0:-1]
+                directory_reports[directory].pi = pi
+                directory_reports[directory].group_name = group
 
-                try:
-                    # hack to go one level deeper if there is a users/ folder
-                    # in the project directory (ie, projects/xyz/users/)
-                    if _dir[2].lower() == "users":
-                        dir = "/".join(short_path.split("/")[0:-1][0:DEPTH+1])
-                    else:
-                        dir = "/".join(short_path.split("/")[0:-1][0:DEPTH])
-                except IndexError:
-                    # removes the last element of the path to prevent
-                    # individual files from getting entries in the report
-                    dir = "/".join(short_path.split("/")[0:-1][0:DEPTH])
+            # File
+            elif line_info[7] == "f":
+                size = int(line_info[1])
+                mtime = int(line_info[5])
+                links = int(line_info[9])
 
-                size = int(line[1])
-                mtime = int(line[5])
-                links = int(line[9])
-
-                # Tries to account for hard links, not perfect but is more
-                # accurate than doing nothing
+                # TODO: work out why this is in old project_inspector
                 try:
                     size = int(size / links)
                 except ZeroDivisionError:
-                    # If a file is 'stat'ed in the middle of being deleted, it
-                    # might show a link count of 0, and can be skipped
                     continue
 
-                if line[3] in HUMGEN_PIS.keys():
-                    pi = HUMGEN_PIS[line[3]]
-                else:
-                    pi = "-"
+                pi = humgen_pis[line_info[3]
+                                ] if line_info[3] in humgen_pis else None
+                group = humgen_groups[line_info[3]
+                                      ] if line_info[3] in humgen_groups else None
 
-                if line[3] in HUMGEN_GROUPS.keys():
-                    group_name = HUMGEN_GROUPS[line[3]]
-                else:
-                    group_name = "-"
+                if directory not in directory_reports:
+                    directory_reports[directory] = DirectoryReport(
+                        files=0,
+                        mtime=mtime,
+                        scratch_disk=scratch_disk
+                    )
 
-                # if the directory hasn't been added to the dictionary yet, it
-                # and all its parents are created
-                if dir not in dir_dict.keys():
-                    dir_dict[dir] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0,
-                                     "mtime": mtime, "pi": pi, "group_name": group_name, "volume": scratch[-3:]}
+                    for parent in utils.finder.getParents(directory):
+                        if parent not in directory_reports:
+                            directory_reports[parent] = DirectoryReport(
+                                files=0,
+                                mtime=mtime,
+                                scratch_disk=scratch_disk
+                            )
 
-                    for parent in getParents(dir):
-                        if parent not in dir_dict.keys():
-                            dir_dict[parent] = {"total": 0, "bam": 0, "cram": 0, "vcf": 0, "pedbed": 0, "files": 0,
-                                                "mtime": mtime, "pi": "-", "group_name": group_name, "volume": scratch[-3:]}
+                # Update Directory Values
+                directory_reports[directory].size += size
+                directory_reports[directory].num_files += 1
+                directory_reports[directory].pi = pi
+                directory_reports[directory].group_name = group
 
-                # updates values for the directory and all its parents
-                dir_dict[dir]["total"] += size
-                dir_dict[dir]["files"] += 1
-                dir_dict[dir]["pi"] = pi
-                dir_dict[dir]["group_name"] = group_name
+                if mtime > directory_reports[directory].mtime:
+                    directory_reports[directory].mtime = mtime
 
-                if mtime > dir_dict[dir]["mtime"]:
-                    dir_dict[dir]["mtime"] = mtime
-                for parent in getParents(dir):
-                    dir_dict[parent]["total"] += size
-                    dir_dict[parent]["files"] += 1
-                    if mtime > dir_dict[parent]["mtime"]:
-                        dir_dict[parent]["mtime"] = mtime
+                # Update Parents
+                for parent in utils.finder.getParents(directory):
+                    directory_reports[parent].size += size
+                    directory_reports[parent].num_files += 1
+                    if mtime > directory_reports[parent].mtime:
+                        directory_reports[parent].mtime = mtime
 
-                if bam.search(short_path):
-                    dir_dict[dir]["bam"] += size
-                    for parent in getParents(dir):
-                        dir_dict[parent]["bam"] += size
+                # Filetype Sizes
+                if BAM.search(short_path):
+                    directory_reports[directory].bam += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].bam += size
 
-                elif cram.search(short_path):
-                    dir_dict[dir]["cram"] += size
-                    for parent in getParents(dir):
-                        dir_dict[parent]["cram"] += size
+                elif CRAM.search(short_path):
+                    directory_reports[directory].cram += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].cram += size
 
-                elif vcf.search(short_path):
-                    dir_dict[dir]["vcf"] += size
-                    for parent in getParents(dir):
-                        dir_dict[parent]["vcf"] += size
+                elif VCF.search(short_path):
+                    directory_reports[directory].vcf += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].vcf += size
 
-                elif pedbed.search(short_path):
-                    dir_dict[dir]["pedbed"] += size
-                    for parent in getParents(dir):
-                        dir_dict[parent]["pedbed"] += size
+                elif PEDBED.search(short_path):
+                    directory_reports[directory].pedbed += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].pedbed += size
 
-    return dir_dict
-
-
-def printTable(dir_dict, scratch, mode):
-    report_path = findReport(scratch)
-    # used to check last modified time against time mpistat output ran
-    MPI_DATE = int(os.stat(report_path).st_mtime)
-
-    paths = list(dir_dict.keys())
-    paths.sort()
-    for key in paths:
-        try:
-            _project = key.split("/")[:2]
-            _project = "/".join(_project)
-        except IndexError:
-            _project = "*TOTAL*"
-
-        _path = "/".join(key.split("/")[2:])
-        if _path == "":
-            _path = "*TOTAL*"
-
-        _files = dir_dict[key]["files"]
-        # 86400 seconds in a day
-        _mtime = round((MPI_DATE - dir_dict[key]["mtime"])/86400, 1)
-
-        if(mode == "project"):
-            _total = round(dir_dict[key]["total"] / 2**40, 3)
-            _bam = round(dir_dict[key]["bam"] / 2**40, 3)
-            _cram = round(dir_dict[key]["cram"] / 2**40, 3)
-            _vcf = round(dir_dict[key]["vcf"] / 2**40, 3)
-            _pedbed = round(dir_dict[key]["pedbed"] / 2**40, 3)
-            _unix_group = dir_dict[key]["group_name"]
-
-            _pi = dir_dict[key]["pi"]
-
-            _volume = scratch[-3:]
-
-            if _project[-1] != "/":
-                # gets the total for the entire project
-                _parenttotal = round(
-                    dir_dict["/".join(key.split("/")[0:2])]["total"] / 2**40, 3)
-            else:
-                _parenttotal = _total
-
-            print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(_project, _path, _total,
-                  _bam, _cram, _vcf, _pedbed, _files, _mtime, _pi, _unix_group, _volume, _parenttotal))
-
-        elif(mode == "general"):
-            _total = humanise(dir_dict[key]["total"])
-            _rawtotal = dir_dict[key]["total"]
-            _bam = humanise(dir_dict[key]["bam"])
-            _cram = humanise(dir_dict[key]["cram"])
-            _vcf = humanise(dir_dict[key]["vcf"])
-            _pedbed = humanise(dir_dict[key]["pedbed"])
-            _unix_group = dir_dict[key]["group_name"]
-
-            print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(
-                key, _total, _bam, _cram, _vcf, _pedbed, _files, _mtime, _rawtotal))
+    return directory_reports
 
 
-def updateSQL(dict_of_dir_dicts, scratch):
-    print("Writing result to spaceman database...", file=sys.stderr)
-    if (config.PORT == None):
-        port = 3306  # if the port isn't set in the config, it's the SQL default
+def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool = False, path: T.Optional[str] = None) -> None:
+    depth = int(depth) + 1
+
+    if path is not None:
+        full_path = pathlib.Path(path).resolve()
+        full_path = str(full_path).strip("/")
+
+        for key in PROJECT_DIRS:
+            if re.match(key, full_path):
+                _suffix = re.sub(key, "", full_path)
+                full_path = PROJECT_DIRS[key] + _suffix
+                break
+
+    # LDAP Information
+    ldap_con = utils.ldap.getLDAPConnection()
+    humgen_names = utils.ldap.get_humgen_ldap_info(ldap_con)
+
+    directories_info: T.Dict[str, T.Dict[str, DirectoryReport]] = {}
+
+    if path is None:
+        with multiprocessing.Pool() as pool:
+            mappings = pool.starmap(
+                create_mapping,
+                zip(
+                    ALL_PROJECTS.values(),
+                    repeat(humgen_names),
+                    repeat(depth)
+                )
+            )
+
+            for mapping in mappings:
+                volume = list(mapping.values()[0]["volume"])
+                directories_info[volume] = mapping
+
     else:
-        port = config.PORT
+        volume = path.split("/")[1][-3:]
+        directories_info[volume] = create_mapping(
+            [path], humgen_names, depth)
 
-    db_con = mysql.connector.connect(
-        host=config.HOST,
-        database=config.DATABASE,
-        port=port,
-        user=config.USER,
-        passwd=config.PASSWORD
+    if tosql:
+        db_conn = db.common.getSQLConnection(config)
+        db.inspector.load_inspections_into_sql(
+            db_conn, directories_info, volume)
+    else:
+        # Printing to stdout
+        print("Last modified is relative to mpistat, so may be a few days off")
+        if (mode == "project" and header):
+            print("Project\tDirectory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
+        elif (mode == "general" and header):
+            print(
+                "Directory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)")
+
+        for volume in directories_info:
+            utils.table.print_table(directories_info[volume], volume, mode)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Create a summary of disk usage of a project directory"
     )
 
-    cursor = db_con.cursor()
+    parser.add_argument("--depth", "-d", nargs="?", type=int, default=2,
+                        help="The depth of the output. Default: 2")
 
-    # read/write user doesn't have temporary table permissions, so a persistent
-    # table is used as a temporary table instead
-    cursor.execute('''DELETE FROM spaceman_tmp''')
+    parser.add_argument("--generic", dest="mode", action="store_const", const="general", default="project",
+                        help="When this flag is used, the output will have the project/directory colums replaced by a single path when outputting a table")
 
-    report_path = findReport(scratch)
-    MPI_DATE = int(os.stat(report_path).st_mtime)
+    parser.add_argument("--noheader", dest="header", action="store_const", const=False, default=True,
+                        help="Don't print column headers")
 
-    for dir_dict in dict_of_dir_dicts.values():
-        paths = list(dir_dict.keys())
-        paths.sort()
+    parser.add_argument("--tosql", dest="tosql", action="store_const", const=True, default=False,
+                        help="In addition to printing to stdout, this flag will write the output to a MySQL database")
 
-        for key in paths:
-            try:
-                _project = key.split("/")[:2]
-                _project = "/".join(_project)
-            except IndexError:
-                _project = "*TOTAL*"
+    parser.add_argument(
+        "path", nargs="?", help="The path to scan. The final directory in the path is considered the root. Leave empty to scan HGI project directories on different volumes all at the same time.")
 
-            _path = "/".join(key.split("/")[2:])
-            if _path == "":
-                _path = "*TOTAL*"
-
-            _files = dir_dict[key]["files"]
-            _mtime = round((MPI_DATE - dir_dict[key]["mtime"])/86400, 1)
-            _total = round(dir_dict[key]["total"] / 2**40, 3)
-            _bam = round(dir_dict[key]["bam"] / 2**40, 3)
-            _cram = round(dir_dict[key]["cram"] / 2**40, 3)
-            _vcf = round(dir_dict[key]["vcf"] / 2**40, 3)
-            _pedbed = round(dir_dict[key]["pedbed"] / 2**40, 3)
-            _unix_group = dir_dict[key]["group_name"]
-
-            _pi = dir_dict[key]["pi"]
-
-            _volume = dir_dict[key]["volume"]
-
-            if _project[-1] != "/":
-                # gets the total for the entire project
-                _parenttotal = round(
-                    dir_dict["/".join(key.split("/")[0:2])]["total"] / 2**40, 3)
-            else:
-                _parenttotal = _total
-
-            instruction = ('''
-            INSERT INTO spaceman_tmp (`Project`, `Directory`, `Volume`,
-                `Files`, `Total`, `BAM`, `CRAM`, `VCF`, `PEDBED`,
-                `Last Modified (days)`, `PI`, `Unix Group`, `Project Total`,
-                `Status`, `Action`, `Comment`)
-            VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''')
-
-            data = (_project, _path, _volume, _files, _total, _bam, _cram, _vcf,
-                    _pedbed, _mtime, _pi, _unix_group, _parenttotal, '', '', '')
-
-            cursor.execute(instruction, data)
-
-    # inserts new rows into the database, updates old rows if they exist
-    cursor.execute('''
-    REPLACE INTO spaceman
-    SELECT db.`index`, report.Project, report.Directory, report.Volume,
-        report.Files, report.Total, report.BAM, report.CRAM, report.VCF,
-        report.PEDBED, report.`Last Modified (days)`, report.PI,
-        report.`Project Total`, IFNULL(db.Status, "no decision"),
-        IFNULL(db.`Action`, "no decision"), IFNULL(db.Comment, ""),
-        report.`Unix Group`
-    FROM spaceman_tmp AS report
-    LEFT JOIN spaceman AS db
-    USING(`Project`, `Directory`, `Volume`)
-    ''')
-    db_con.commit()
-
-    # deletes rows which exist in the database but did not appear in the report
-    cursor.execute('''
-        DELETE FROM spaceman
-        WHERE NOT EXISTS (
-            SELECT null FROM spaceman_tmp AS report
-            WHERE spaceman.Project = report.Project
-            AND spaceman.Directory = report.Directory
-            AND spaceman.Volume = report.Volume
-        )
-    ''')
-
-    cursor.execute('''DELETE FROM spaceman_tmp''')
-    db_con.commit()
-
-    cursor.close()
-    db_con.close()
-
-    print("Updated spaceman's MySQL database.", file=sys.stderr)
-
-
-def main():
     args = parser.parse_args()
 
     if (args.tosql and args.path is not None):
         print("--tosql flag cannot be used with an explicit path argument!")
-        exit()
-
-    DEPTH = int(args.depth)+1
-    if args.path is not None:
-        FULL_PATH = pathlib.Path(args.path).resolve()
-        FULL_PATH = str(FULL_PATH).strip("/")
-
-        for key in PROJECT_DIRS:
-            if re.match(key, FULL_PATH):
-                _suffix = re.sub(key, '', FULL_PATH)
-                FULL_PATH = PROJECT_DIRS[key] + _suffix
-
-    HUMGEN_NAMES = getHumgenNames()
-
-    dir_dict = {}
-    if args.path is None:
-        with multiprocessing.Pool() as pool:
-            dictionaries = pool.starmap(createMapping,
-                                        zip(ALL_PROJECTS.values(), repeat(HUMGEN_NAMES),
-                                            repeat(DEPTH)))
-
-        for dictionary in dictionaries:
-            volume = list(dictionary.values())[0]["volume"]
-            dir_dict[volume] = dictionary
     else:
-        volume = FULL_PATH.split("/")[1][-3:]
-        dir_dict[volume] = createMapping(FULL_PATH, HUMGEN_NAMES, DEPTH)
-
-    if (args.tosql):
-        updateSQL(dir_dict, volume)
-    else:
-        print("Note: all values are in TiB. Last Modified value is relative to mpistat time, and might be a few days behind.", file=sys.stderr)
-        if (args.mode == "project" and args.header == True):
-            print("Project\tDirectory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume\tProject Total")
-        elif (args.mode == "general" and args.header == True):
-            print(
-                "Directory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tTotal (bytes)")
-
-        for volume in dir_dict:
-            printTable(dir_dict[volume], volume, args.mode)
-
-
-if __name__ == "__main__":
-    main()
+        main(
+            args.depth,
+            args.mode,
+            args.header,
+            args.tosql,
+            args.path
+        )

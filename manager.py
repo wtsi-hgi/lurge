@@ -56,12 +56,7 @@ def main(mode: str) -> None:
             if not all_exists(mpi_date):
                 days_ago += 1
             else:
-                if mode == "inspector":
-                    # Run project_inspector
-                    # TODO
-                    pass
-                    success = 1
-                elif mode == "report":
+                if mode in ["report", "both"]:
                     filenames: T.List[str] = []
 
                     # When a full set is found, create some links
@@ -85,8 +80,10 @@ def main(mode: str) -> None:
                     report.main(mpi_date_dt.strftime("%Y-%m-%d"), filenames)
                     success = 1
 
-                else:
-                    raise ValueError
+                if mode in ["inspector", "both"]:
+                    import project_inspector
+                    project_inspector.main(tosql=True)
+                    success = 1
 
     if days_ago >= MAX_DAYS_AGO:
         print(
@@ -94,7 +91,7 @@ def main(mode: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] in ["inspector", "report"]:
+    if len(sys.argv) == 2 and sys.argv[1] in ["inspector", "report", "both"]:
         main(sys.argv[1])
     else:
-        sys.exit("Must be run in form: python manager.py {report|inspector}")
+        sys.exit("Must be run in form: python manager.py {report|inspector|both}")
