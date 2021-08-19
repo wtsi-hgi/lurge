@@ -8,6 +8,7 @@ import re
 import typing as T
 
 import utils.finder
+import utils.ldap
 import utils.table
 
 PROJECT_DIRS = {
@@ -218,9 +219,9 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
                 full_path = PROJECT_DIRS[key] + _suffix
                 break
 
-    # TODO
-    # Next up is LDAP. utils/ldap.py should be made to handle that
-    humgen_names = ...
+    # LDAP Information
+    ldap_con = utils.ldap.getLDAPConnection()
+    humgen_names = utils.ldap.get_humgen_ldap_info(ldap_con)
 
     directories_info: T.Dict[str, T.Dict[str, T.Any]] = {}
 

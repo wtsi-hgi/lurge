@@ -234,7 +234,7 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
     ldap_con = utils.ldap.getLDAPConnection()
 
     print("Collecting group information...")
-    utils.ldap.findGroups(ldap_con, tmp_db)
+    utils.ldap.add_humgen_ldap_to_db(ldap_con, tmp_db)
 
     # Create the tables in the temporary DB
     generate_tables(tmp_db)
