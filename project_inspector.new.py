@@ -11,6 +11,8 @@ import utils.finder
 import utils.ldap
 import utils.table
 
+from types.directory_report import DirectoryReport
+
 PROJECT_DIRS = {
     'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
     'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
@@ -30,20 +32,6 @@ BAM = re.compile("\.(bam|sam)(\.gz)?$")
 CRAM = re.compile("\.cram(\.gz)?$")
 VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
 PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
-
-
-class DirectoryReport:
-    def __init__(self, files, mtime, scratch_disk):
-        self.size = 0
-        self.bam = 0
-        self.cram = 0
-        self.vcf = 0
-        self.pedbed = 0
-        self.num_files = files
-        self.mtime = mtime
-        self.pi = None
-        self.group_name = None
-        self.scratch_disk = scratch_disk
 
 
 def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int) -> T.Dict[str, T.Any]:
@@ -223,7 +211,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
     ldap_con = utils.ldap.getLDAPConnection()
     humgen_names = utils.ldap.get_humgen_ldap_info(ldap_con)
 
-    directories_info: T.Dict[str, T.Dict[str, T.Any]] = {}
+    directories_info: T.Dict[str, T.Dict[str, DirectoryReport]] = {}
 
     if path is None:
         with multiprocessing.Pool() as pool:
@@ -250,7 +238,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
         pass
     else:
         # Printing to stdout
-        print("Values are in GiB. Last modified is relative to mpistat, so may be a few days off")
+        print("Last modified is relative to mpistat, so may be a few days off")
         if (mode == "project" and header):
             print("Project\tDirectory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
         elif (mode == "general" and header):
