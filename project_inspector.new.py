@@ -7,11 +7,15 @@ import pathlib
 import re
 import typing as T
 
+import db.common
+import db.inspector
 import utils.finder
 import utils.ldap
 import utils.table
 
 from types.directory_report import DirectoryReport
+
+import report_config as config
 
 PROJECT_DIRS = {
     'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
@@ -234,8 +238,9 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
             [path], humgen_names, depth)
 
     if tosql:
-        # TODO Write to SQL
-        pass
+        db_conn = db.common.getSQLConnection(config)
+        db.inspector.load_inspections_into_sql(
+            db_conn, directories_info, volume)
     else:
         # Printing to stdout
         print("Last modified is relative to mpistat, so may be a few days off")

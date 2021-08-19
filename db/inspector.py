@@ -32,8 +32,41 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
     cursor = db_conn.cursor()
 
+    # First, get all the foreign keys for PIs, Volumes and Groups
+    # We'll also add any that don't exist later
+
+    # PI
+    cursor.execute("SELECT * FROM hgi_lustre_usage_new.pi")
+    pi_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
+
+    pis: T.Dict[str, int] = {}
+    for (pi_id, pi_name) in pi_results:
+        pis[pi_name] = pi_id
+
+    # Groups
+    # Unlike in the report, we don't care about if they're part of HumGen or not,
+    # so we'll just assume they are. It doesn't matter
     cursor.execute(
-        "UPDATE hgi_lustre_usage_new.directory SET project_name = (SELECT CONCAT('.hgi.old', project_name));")
+        "SELECT (group_id, group_name) FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
+    group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
+
+    groups: T.Dict[str, int] = {}
+    for (group_id, group_name) in groups:
+        groups[group_name] = group_id
+
+    # Volumes
+    cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
+    volume_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
+
+    volumes: T.Dict[str, int] = {}
+    for (volume_id, volume_name) in volume_results:
+        volumes[volume_name] = volume_id
+
+    # Now, we'll go onto the above plan
+
+    # Renaming Old Data
+    cursor.execute(
+        "UPDATE hgi_lustre_usage_new.directory SET project_name = (SELECT CONCAT('.hgi.old.', project_name));")
     db_conn.commit()
 
     for directory_info in vol_directory_info.values():
@@ -63,5 +96,85 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             _pi = directory_info[key].pi
             _volume = directory_info[key].scratch_disk
 
-            # TODO: Pull down foreign keys, and add all this to DB
-            ...
+            # Adding foreign keys if they don't exist
+            if _pi is not None:
+                try:
+                    db_pi = pis[_pi]
+                except KeyError:
+                    cursor.execute(
+                        "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (?);", _pi)
+                    cursor.execute(
+                        "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", _pi)
+                    (new_pi_id,) = cursor.fetchone()
+                    pis[_pi] = new_pi_id
+            else:
+                db_pi = None
+
+            if _unix_group not in groups:
+                cursor.execute(
+                    "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, 1);", (_unix_group))
+                cursor.execute(
+                    "SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = 1;", (_unix_group))
+                (new_group_id,) = cursor.fetchone()
+                groups[_unix_group] = new_group_id
+
+            if _volume not in volumes:
+                cursor.execute(
+                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", _volume)
+                cursor.execute(
+                    "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", _volume)
+                (new_volume_id,) = cursor.fetchone()
+                volumes[_volume] = new_volume_id
+
+            # Add new data
+            query = """INSERT INTO hgi_lustre_usage_new.direcory (project_name, directory_path, num_files,
+            size, last_modified, pi_id, volume_id, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"""
+
+            cursor.execute(query, (
+                _project,
+                _path,
+                _files,
+                _size,
+                _mtime,
+                db_pi,
+                volumes[_volume],
+                groups[_unix_group]
+            ))
+
+            # Get the new directory_id back, so we can add file types
+            # Technically, this might not be unique, but searching by directory is a big no-no cause it could be NULL
+            # So, searching by number of files because it is _very probably_ unique
+            cursor.execute(
+                "SELECT directory_id FROM hgi_lustre_usage_new.directory WHERE project_name = ? AND num_files = ?", _project, _files)
+            (new_id,) = cursor.fetchone()
+
+            # Add the file sizes
+            # Although these are in the DB with foreign keys, we'll hardcode them here
+
+            """
+            Key Filetype
+            1   BAM
+            2   CRAM
+            3   VCF
+            4   PEDBED
+            """
+
+            cursor.execute("""INSERT INTO hgi_lustre_usage_new.file_size (directory_id, filetype_id, size) 
+            VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?);""", (
+                new_id, 1, _bam, new_id, 2, _cram, new_id, 3, _vcf, new_id, 4, _pedbed
+            ))
+
+    db_conn.commit()
+
+    # Now we've added all the new data, we can delete all the old data
+    # This is data where the project is prefixed with `.hgi.old.`
+
+    cursor.execute("""DELETE FROM hgi_lustre_usage_new.file_size WHERE directory_id IN (
+                        SELECT directory_id FROM hgi_lustre_usage_new.directory
+                        WHERE project_name LIKE '.hgi.old.%'
+                    )""")
+
+    cursor.execute(
+        "DELETE FROM hgi_lustre_usage_new.directory WHERE project_name LIKE '.hgi.old%")
+
+    # and we're done.
