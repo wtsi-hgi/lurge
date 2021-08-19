@@ -30,6 +30,7 @@ CRAM = re.compile("\.cram(\.gz)?$")
 VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
 PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
 
+
 class DirectoryReport:
     def __init__(self, files, mtime, scratch_disk):
         self.size = 0
@@ -86,7 +87,8 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
             10      Device ID
             """
 
-            entry_path = base64.b64decode(line_info[0]).decode("UTF-8", "replace").strip("/")
+            entry_path = base64.b64decode(line_info[0]).decode(
+                "UTF-8", "replace").strip("/")
 
             # If the entry path doesn't contain a target directory
             # then we don't care about the entry, and its skipped
@@ -115,14 +117,18 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
             # Directory
             if line_info[7] == "d":
 
-                pi = humgen_pis[line_info[3]] if line_info[3] in humgen_pis else None
-                group = humgen_groups[line_info[3]] if line_info[3] in humgen_groups else None
+                pi = humgen_pis[line_info[3]
+                                ] if line_info[3] in humgen_pis else None
+                group = humgen_groups[line_info[3]
+                                      ] if line_info[3] in humgen_groups else None
 
                 if directory not in directory_reports:
-                    directory_reports[directory] = DirectoryReport(files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
+                    directory_reports[directory] = DirectoryReport(
+                        files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
                     for parent in utils.finder.getParents(directory):
                         if parent not in directory_reports:
-                            directory_reports[parent] = DirectoryReport(files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
+                            directory_reports[parent] = DirectoryReport(
+                                files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
 
                 directory_reports[directory].pi = pi
                 directory_reports[directory].group_name = group
@@ -139,22 +145,24 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
                 except ZeroDivisionError:
                     continue
 
-                pi = humgen_pis[line_info[3]] if line_info[3] in humgen_pis else None
-                group = humgen_groups[line_info[3]] if line_info[3] in humgen_groups else None
+                pi = humgen_pis[line_info[3]
+                                ] if line_info[3] in humgen_pis else None
+                group = humgen_groups[line_info[3]
+                                      ] if line_info[3] in humgen_groups else None
 
                 if directory not in directory_reports:
                     directory_reports[directory] = DirectoryReport(
-                        files = 0,
-                        mtime  = mtime,
-                        scratch_disk = scratch_disk
+                        files=0,
+                        mtime=mtime,
+                        scratch_disk=scratch_disk
                     )
 
                     for parent in utils.finder.getParents(directory):
                         if parent not in directory_reports:
                             directory_reports[parent] = DirectoryReport(
-                                files = 0,
-                                mtime = mtime,
-                                scratch_disk = scratch_disk
+                                files=0,
+                                mtime=mtime,
+                                scratch_disk=scratch_disk
                             )
 
                 # Update Directory Values
@@ -194,7 +202,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
                     for parent in utils.finder.getParents(directory):
                         directory_reports[parent].pedbed += size
 
-    return directory_reports        
+    return directory_reports
 
 
 def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool = False, path: T.Optional[str] = None) -> None:
