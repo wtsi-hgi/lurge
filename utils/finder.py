@@ -1,5 +1,6 @@
 import datetime
 import os
+import typing as T
 
 def findReport(scratch_disk: str, report_dir: str):
     date = datetime.date.today()
@@ -14,6 +15,10 @@ def findReport(scratch_disk: str, report_dir: str):
 
     return f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.dat.gz"
 
-def getParents(directory: str):
-    # TODO
-    ...
+def getParents(directory: str) -> T.List[str]:
+    """
+        Returns a list of directories parent to parameter directory
+    """
+
+    split_dir = directory.split("/")
+    return ["/".join(split_dir[:i]) for i in range(1, len(split_dir))]

@@ -24,6 +24,12 @@ ALL_PROJECTS = {
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"]
 }
 
+# Regexs for File Types
+BAM = re.compile("\.(bam|sam)(\.gz)?$")
+CRAM = re.compile("\.cram(\.gz)?$")
+VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
+PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
+
 class DirectoryReport:
     def __init__(self, files, mtime, scratch_disk):
         self.size = 0
@@ -92,24 +98,29 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
             short_path = re.sub(root_parent, "", entry_path).strip("/")
 
+            _dir = short_path.split("/")[:-1]
+
+            # Just use the directory if its a file
+            if line_info[7] == "f":
+                _dir = _dir[:-1]
+
+            # Go a level deeper if users directory
+            try:
+                _depth = depth + 1 if _dir[2].lower() == "users" else depth
+            except IndexError:
+                _depth = depth
+
+            directory = "/".join(short_path.split("/")[:_depth])
+
             # Directory
             if line_info[7] == "d":
-                _dir = short_path.split("/")[:-1]
-
-                # Go a level deeper if users directory
-                try:
-                    _depth = depth + 1 if _dir[2].lower() == "users" else depth
-                except IndexError:
-                    _depth = depth
-
-                directory = "/".join(short_path.split("/")[:_depth])
 
                 pi = humgen_pis[line_info[3]] if line_info[3] in humgen_pis else None
                 group = humgen_groups[line_info[3]] if line_info[3] in humgen_groups else None
 
                 if directory not in directory_reports:
                     directory_reports[directory] = DirectoryReport(files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
-                    for parent in utils.finder.getParents(directory): # TODO getParents function
+                    for parent in utils.finder.getParents(directory):
                         if parent not in directory_reports:
                             directory_reports[parent] = DirectoryReport(files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
 
@@ -118,8 +129,70 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
             # File
             elif line_info[7] == "f":
-                # TODO
-                ...
+                size = int(line_info[1])
+                mtime = int(line_info[5])
+                links = int(line_info[9])
+
+                # TODO: work out why this is in old project_inspector
+                try:
+                    size = int(size / links)
+                except ZeroDivisionError:
+                    continue
+
+                pi = humgen_pis[line_info[3]] if line_info[3] in humgen_pis else None
+                group = humgen_groups[line_info[3]] if line_info[3] in humgen_groups else None
+
+                if directory not in directory_reports:
+                    directory_reports[directory] = DirectoryReport(
+                        files = 0,
+                        mtime  = mtime,
+                        scratch_disk = scratch_disk
+                    )
+
+                    for parent in utils.finder.getParents(directory):
+                        if parent not in directory_reports:
+                            directory_reports[parent] = DirectoryReport(
+                                files = 0,
+                                mtime = mtime,
+                                scratch_disk = scratch_disk
+                            )
+
+                # Update Directory Values
+                directory_reports[directory].size += size
+                directory_reports[directory].num_files += 1
+                directory_reports[directory].pi = pi
+                directory_reports[directory].group_name = group
+
+                if mtime > directory_reports[directory].mtime:
+                    directory_reports[directory].mtime = mtime
+
+                # Update Parents
+                for parent in utils.finder.getParents(directory):
+                    directory_reports[parent].size += size
+                    directory_reports[parent].num_files += 1
+                    if mtime > directory_reports[parent].mtime:
+                        directory_reports[parent].mtime = mtime
+
+                # Filetype Sizes
+                if BAM.search(short_path):
+                    directory_reports[directory].bam += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].bam += size
+
+                elif CRAM.search(short_path):
+                    directory_reports[directory].cram += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].cram += size
+
+                elif VCF.search(short_path):
+                    directory_reports[directory].vcf += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].vcf += size
+
+                elif PEDBED.search(short_path):
+                    directory_reports[directory].pedbed += size
+                    for parent in utils.finder.getParents(directory):
+                        directory_reports[parent].pedbed += size
 
     return directory_reports        
 
