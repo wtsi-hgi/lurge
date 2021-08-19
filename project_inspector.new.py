@@ -1,10 +1,13 @@
 import argparse
+import base64
+import gzip
 from itertools import repeat
 import multiprocessing
 import pathlib
 import re
 import typing as T
 
+import utils.finder
 import utils.table
 
 PROJECT_DIRS = {
@@ -21,9 +24,104 @@ ALL_PROJECTS = {
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"]
 }
 
+class DirectoryReport:
+    def __init__(self, files, mtime, scratch_disk):
+        self.size = 0
+        self.bam = 0
+        self.cram = 0
+        self.vcf = 0
+        self.pedbed = 0
+        self.num_files = files
+        self.mtime = mtime
+        self.pi = None
+        self.group_name = None
+        self.scratch_disk = scratch_disk
 
-def create_mapping(path: str, names: T.Dict[str, T.Tuple[str, str]], depth: int) -> T.Dict[str, T.Any]:
-    return {}
+
+def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int) -> T.Dict[str, T.Any]:
+    """Returns a dictionary mapping paths to objects of properties
+
+    @param path - List of paths to root directories to scan from
+    @param names - Tuple of dictionaries mapping group IDs to the group name and PI
+    @param depth - How many levels below the root to scan
+    """
+
+    humgen_pis, humgen_groups = names
+
+    segmented_path = paths[0].split("/")
+    scratch_disk = "/".join(segmented_path[0:2])
+    root_parent = "/".join(segmented_path[0:-1])
+    report_path = utils.finder.findReport(scratch_disk)
+
+    directory_reports: T.Dict[str, DirectoryReport] = {}
+
+    print(f"Reading mpistat output {report_path}")
+    lines_read = 0
+    with gzip.open(report_path, "rt") as mpistat:
+        for line in mpistat:
+            lines_read += 1
+            if lines_read % 20000000 == 0:
+                print(f"Read {lines_read} from mpistat for {scratch_disk}")
+            line_info = line.split()
+
+            """
+            Line Info (layout from mpistat file)
+            Index   Item
+            0       File Path (base 64 encoded)
+            1       Size (bytes)
+            2       Owner (User ID)
+            3       Group (Group ID)
+            4       Last Accessed Time (Unix)
+            5       Last Modified Time (Unix)
+            6       Last Changed Time (Unix)
+            7       File Type (f = file, d = directory)
+            8       Inode ID
+            9       Number of Hardlinks
+            10      Device ID
+            """
+
+            entry_path = base64.b64decode(line_info[0]).decode("UTF-8", "replace").strip("/")
+
+            # If the entry path doesn't contain a target directory
+            # then we don't care about the entry, and its skipped
+            for path in paths:
+                if re.match(path, entry_path) is not None:
+                    break
+            else:
+                continue
+
+            short_path = re.sub(root_parent, "", entry_path).strip("/")
+
+            # Directory
+            if line_info[7] == "d":
+                _dir = short_path.split("/")[:-1]
+
+                # Go a level deeper if users directory
+                try:
+                    _depth = depth + 1 if _dir[2].lower() == "users" else depth
+                except IndexError:
+                    _depth = depth
+
+                directory = "/".join(short_path.split("/")[:_depth])
+
+                pi = humgen_pis[line_info[3]] if line_info[3] in humgen_pis else None
+                group = humgen_groups[line_info[3]] if line_info[3] in humgen_groups else None
+
+                if directory not in directory_reports:
+                    directory_reports[directory] = DirectoryReport(files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
+                    for parent in utils.finder.getParents(directory): # TODO getParents function
+                        if parent not in directory_reports:
+                            directory_reports[parent] = DirectoryReport(files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
+
+                directory_reports[directory].pi = pi
+                directory_reports[directory].group_name = group
+
+            # File
+            elif line_info[7] == "f":
+                # TODO
+                ...
+
+    return directory_reports        
 
 
 def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool = False, path: T.Optional[str] = None) -> None:
@@ -63,7 +161,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
     else:
         volume = path.split("/")[1][-3:]
         directories_info[volume] = create_mapping(
-            path, humgen_names, depth)
+            [path], humgen_names, depth)
 
     if tosql:
         # TODO Write to SQL
