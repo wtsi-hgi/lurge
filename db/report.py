@@ -6,22 +6,6 @@ import typing as T
 import mysql.connector
 
 
-def getSQLConnection(config) -> mysql.connector.MySQLConnection:
-    # connects to the MySQL server used to store the report data, change the
-    # credentials here to point at your desired database
-    port = config.PORT if config.PORT is not None else 3306
-
-    db_con = mysql.connector.connect(
-        host=config.HOST,
-        database=config.DATABASE,
-        port=port,
-        user=config.USER,
-        passwd=config.PASSWORD
-    )
-
-    return db_con
-
-
 def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, db_name: str):
     """
     Checks the dates in the MySQL database, and stops the program if date 'date'
@@ -41,7 +25,7 @@ def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, db_name:
                 Exiting.".format(date))
 
 
-def loadIntoMySQL(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], date: str):
+def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], date: str):
     """
     Reads the contents of tables in tmp_db and writes them to a MySQL database.
 

@@ -10,6 +10,7 @@ import typing as T
 
 import ldap
 
+import db.common
 import db.report
 import utils.ldap
 import utils.tsv
@@ -223,7 +224,7 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
     print("Establishing MySQL connection...")
-    sql_db = db.report.getSQLConnection(config)
+    sql_db = db.common.getSQLConnection(config)
 
     try:
         db.report.checkReportDate(sql_db, date, DATABASE_NAME)
@@ -289,7 +290,7 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
     date = "{0:%Y-%m-%d}".format(date_unix)
 
     print("Transferring report data to MySQL database...")
-    db.report.loadIntoMySQL(tmp_db, sql_db, tables, date)
+    db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, date)
 
     print("Writing report data to .tsv file...")
     utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR)
