@@ -2,7 +2,7 @@ import os
 import typing as T
 
 from . import finder
-from ..types.directory_report import DirectoryReport
+from lurge_types.directory_report import DirectoryReport
 
 
 def humanise(number):
@@ -21,8 +21,8 @@ def humanise(number):
         return "{} PiB".format(round(number/2**50, 2))
 
 
-def print_table(directory_info: T.Dict[str, DirectoryReport], volume: str, mode: str) -> None:
-    report_path = finder.findReport(volume)
+def print_table(directory_info: T.Dict[str, DirectoryReport], volume: str, mode: str, report_dir: str) -> None:
+    report_path = finder.findReport(volume, report_dir)
     mpistat_date = int(os.stat(report_path).st_mtime)
 
     paths = list(directory_info.keys())

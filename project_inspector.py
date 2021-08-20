@@ -17,6 +17,8 @@ from types.directory_report import DirectoryReport
 
 import report_config as config
 
+REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
+
 PROJECT_DIRS = {
     'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
     'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
@@ -51,7 +53,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
     segmented_path = paths[0].split("/")
     scratch_disk = "/".join(segmented_path[0:2])
     root_parent = "/".join(segmented_path[0:-1])
-    report_path = utils.finder.findReport(scratch_disk)
+    report_path = utils.finder.findReport(scratch_disk, REPORT_DIR)
 
     directory_reports: T.Dict[str, DirectoryReport] = {}
 
@@ -240,7 +242,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
     if tosql:
         db_conn = db.common.getSQLConnection(config)
         db.inspector.load_inspections_into_sql(
-            db_conn, directories_info, volume)
+            db_conn, directories_info, volume, REPORT_DIR)
     else:
         # Printing to stdout
         print("Last modified is relative to mpistat, so may be a few days off")
@@ -251,7 +253,8 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
                 "Directory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)")
 
         for volume in directories_info:
-            utils.table.print_table(directories_info[volume], volume, mode)
+            utils.table.print_table(
+                directories_info[volume], volume, mode, REPORT_DIR)
 
 
 if __name__ == "__main__":

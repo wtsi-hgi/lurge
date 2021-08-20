@@ -3,16 +3,16 @@ import typing as T
 
 import mysql.connector
 
-from ..utils import finder
-from ..types.directory_report import DirectoryReport
+from utils import finder
+from lurge_types.directory_report import DirectoryReport
 
 SCALING_FACTOR = 2**30  # bytes / 2**30 = GiB
 
 
-def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_directory_info: T.Dict[str, T.Dict[str, DirectoryReport]], scratch_disk: str):
+def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_directory_info: T.Dict[str, T.Dict[str, DirectoryReport]], scratch_disk: str, report_dir: str):
     print("Writing results to MySQL database")
 
-    report_path = finder.findReport(scratch_disk)
+    report_path = finder.findReport(scratch_disk, report_dir)
     mpistat_date = int(os.stat(report_path).st_mtime)
 
     """

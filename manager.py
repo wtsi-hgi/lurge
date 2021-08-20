@@ -94,4 +94,5 @@ if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] in ["inspector", "report", "both"]:
         main(sys.argv[1])
     else:
-        sys.exit("Must be run in form: python manager.py {report|inspector|both}")
+        sys.exit(
+            "Must be run in form: python manager.py {report|inspector|both}")

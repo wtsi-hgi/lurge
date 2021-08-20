@@ -3,7 +3,7 @@ import ldap
 import typing as T
 
 
-def getLDAPConnection() -> ldap.LDAPObject:
+def getLDAPConnection():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
     # Sanger internal LDAP is public so no credentials needed
     con.bind("", "")
@@ -11,7 +11,7 @@ def getLDAPConnection() -> ldap.LDAPObject:
     return con
 
 
-def get_humgen_ldap_info(ldap_con: ldap.LDAPObject) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]]:
+def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]]:
     results: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                                                              ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
                                                              ["gidNumber", "sangerProjectPI", "cn"])
@@ -38,18 +38,19 @@ def get_humgen_ldap_info(ldap_con: ldap.LDAPObject) -> T.Tuple[T.Dict[str, str],
 
     for PIuid in PIuids:
         surname_result = ldap_con.search_s(
-            "ou=people,dc=sanger,dc=ac,dc=uk", ldap.SCOPE_ONELEVEL, f"(uid={PIuid}", ["sn"])
+            "ou=people,dc=sanger,dc=ac,dc=uk", ldap.SCOPE_ONELEVEL, f"(uid={PIuid})", ["sn"])
 
-        surname = surname_result[0][1]["sn"].decode("UTF-8")
+        surname = surname_result[0][1]["sn"][0].decode("UTF-8")
         pi_sn[PIuid] = surname
 
     for gid in group_pis:
-        group_pis[gid] = pi_sn[group_pis[gid]]
+        if group_pis[gid] is not None:
+            group_pis[gid] = pi_sn[group_pis[gid]]
 
     return (group_pis, group_names)
 
 
-def add_humgen_ldap_to_db(ldap_con: ldap.LDAPObject, tmp_db: sqlite3.Connection) -> None:
+def add_humgen_ldap_to_db(ldap_con, tmp_db: sqlite3.Connection) -> None:
     db_cursor = tmp_db.cursor()
     db_cursor.execute(
         "CREATE TABLE group_table(gidNumber INTEGER PRIMARY KEY, groupName TEXT, PI TEXT);")
@@ -59,5 +60,5 @@ def add_humgen_ldap_to_db(ldap_con: ldap.LDAPObject, tmp_db: sqlite3.Connection)
 
     for gid in groups:
         db_cursor.execute(
-            "INSERT INTO group_table (gidNumber, groupName PI) VALUES (?, ?, ?)", (gid, groups[gid], pis[gid]))
+            "INSERT INTO group_table (gidNumber, groupName, PI) VALUES (?, ?, ?)", (gid, groups[gid], pis[gid]))
     tmp_db.commit()
