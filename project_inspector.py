@@ -13,7 +13,7 @@ import utils.finder
 import utils.ldap
 import utils.table
 
-from types.directory_report import DirectoryReport
+from lurge_types.directory_report import DirectoryReport
 
 import report_config as config
 
