@@ -40,45 +40,32 @@
 
 #### `project_inspector.py`
 
-- TODO
-```
-* `inspector_cron.sh` (old, reference for new `project_inspector.py`)
-  * bsub: `inspector_manager.sh`
-    * tries to determine latest full set of mpistat
-    * only looks over the past N days
-    * won't proceed if report-DATE.tsv exists
-    * pass to: `project_inspector.py` with `--tosql`
-      * `--tosql` will write to the MySQL DB, as well as stdout
-      * If given a path (mutually exclusive with `--tosql`), then apply
-        mapping for Lustres with multiple MDTs
-      * get humgen groups from ldap (gid, name and PI), deref PI dn to
-        fetch surname
-      * Create multiprocess pool and to create mapping for path/all
-        project roots
-        * Finds the latest mpistat output for the scratch volume by
-          starting at today and working backwards until something's
-          found
-        * Iterate through mpistat file
-          * If the path matches what we're looking for:
-            * If we have a directory
-              * Normalise `users` directories, if they exist and it's
-                possible, to `users/whatever`
-              * Record in dictionary, if it doesn't exist; also add its
-                parents to dictionary, if they don't exist. Set all
-                accumulators for entry to 0, except files (to 1)
-              * Set PI and group name for entry
-            * If we have a file
-              * Go a level deeper if we're in a `users` directory, when
-                possible
-              * Record in dictionary, if it doesn't exist, with
-                appropriate mtime, pi and group; do the same for parents
-                (if they don't exist)
-              * Aggregate size and files; update mtime if newer. Do this
-                for all parents in dictionary
-              * If the file matches one of the interesting classes (bam,
-                cram, etc.) then aggregate for those and its parents
-        * Write to DB, if required, otherwise print to stdout
-```
+- get humgen groups from ldap (`utils.ldap.py`)
+- if a path isn't specified, spin up multiproc Pool workers to collect data on all the humgen directories we care about
+    - firstly, finds the most recent mpistat report for the volume
+    - iterates over every line in the mpistat
+        - if the path doesn't contain a directory we care about, we skip it
+        - if we're in a `users` directory, go one level deeper
+        - if we have a directory:
+            - find out the pi and group name
+            - if the directory isn't already in our reports, add it and all its parents
+            - add the PI and gorup to the directory report
+        - else if we have a file:
+            - get the PI and group information
+            - if the directory (file) not in the reports (which it shouldn't be anyway), add it, and all its parent directories
+            - backfill the file sizes, modified times etc.
+            - if BAM/CRAM etc file, also backfill the file size in that category
+        - return the collection of reports
+    - if `tosql` flag set, we're going to write the information to the database (`db/common.py` and `db.inspector.py`)
+        - First, we're going to load the PI/Group/Volume foreign keys into memory
+        - Next, as we're replacing the old data, we're going to tag all the project_names with `.hgi.old.` at the start, instead of deleting it. This'll save us if the additions go wrong
+        - For each DirectoryRecord we have, we're going to format the sizes nicely
+        - We'll add anything to the foreign tables if neccesary
+        - We're then going to add the information to the `directory` MySQL table, and get back the `directory_id`.
+        - We can use that ID to then add all the BAM/CRAM etc data to the `file_size` table.
+        - Finally, we can remove any old data - this is data tagged with `.hgi.old`
+    - if we're not going to write it to the database, we're going to write it to `stdout` (`utils/table.py`)
+
 ### `group_splitter_cron.sh`
 * bsub: `group_splitter_manager.sh`
   * `group_splitter.py`

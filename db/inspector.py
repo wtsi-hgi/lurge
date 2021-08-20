@@ -51,7 +51,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
     group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
     groups: T.Dict[str, int] = {}
-    for (group_id, group_name) in groups:
+    for (group_id, group_name) in group_results:
         groups[group_name] = group_id
 
     # Volumes
