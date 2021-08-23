@@ -11,7 +11,11 @@ Group Splitter takes mpistat output files and splits them by the Unix group of t
 
 ## Getting started
 1. Clone the repository
-2. Enter MySQL database credentials in `report_config.py`
-3. If necessary, edit declarations in `reportmanager.sh`/`inspector_manager.sh` to point at the correct directories
-4. If necessary, create a Python3 virtual environment and change `PY_ENV` in `reportmanager.sh`/`inspector_manager.sh` to point to it 
-5. Run `reportmanager.sh`/`inspector_manager.sh`
+2. Copy `report_config.example.py` to `report_config.py` and enter MySQL database credentials in `report_config.py`
+3. If necessary, edit declarations in `directory_config.py` to point at the correct directories
+4. If necessary, create a Python3 virtual environment and change command in `cron.sh` to point to it 
+5. Run `manager.py {report|inspector|both}`
+
+See `docs/` for more information
+
+*group_splitter not changed August 2021* 
