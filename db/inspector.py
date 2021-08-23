@@ -30,7 +30,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
     it'll just be tagged `.hgi.old.`. Which is fine. But hopefully that won't happen.
     """
 
-    cursor = db_conn.cursor()
+    cursor = db_conn.cursor(buffered=True)
 
     # First, get all the foreign keys for PIs, Volumes and Groups
     # We'll also add any that don't exist later
@@ -47,7 +47,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
     # Unlike in the report, we don't care about if they're part of HumGen or not,
     # so we'll just assume they are. It doesn't matter
     cursor.execute(
-        "SELECT (group_id, group_name) FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
+        "SELECT group_id, group_name FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
     group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
     groups: T.Dict[str, int] = {}
@@ -94,7 +94,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
             _unix_group = directory_info[key].group_name
             _pi = directory_info[key].pi
-            _volume = directory_info[key].scratch_disk
+            _volume = directory_info[key].scratch_disk.split("/")[1]
 
             # Adding foreign keys if they don't exist
             if _pi is not None:
@@ -102,33 +102,40 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                     db_pi = pis[_pi]
                 except KeyError:
                     cursor.execute(
-                        "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (?);", _pi)
+                        "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (%s);", (_pi,))
                     cursor.execute(
-                        "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", _pi)
+                        "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", (_pi,))
                     (new_pi_id,) = cursor.fetchone()
                     pis[_pi] = new_pi_id
+                    db_pi = new_pi_id
             else:
                 db_pi = None
 
-            if _unix_group not in groups:
-                cursor.execute(
-                    "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, 1);", (_unix_group))
-                cursor.execute(
-                    "SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = 1;", (_unix_group))
-                (new_group_id,) = cursor.fetchone()
-                groups[_unix_group] = new_group_id
+            if _unix_group is not None:
+                try:
+                    db_group = groups[_unix_group]
+                except KeyError:
+                    cursor.execute(
+                        "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (_unix_group, 1))
+                    cursor.execute(
+                        "SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = %s;", (_unix_group, 1))
+                    (new_group_id,) = cursor.fetchone()
+                    groups[_unix_group] = new_group_id
+                    db_group = new_group_id
+                else:
+                    db_group = None
 
             if _volume not in volumes:
                 cursor.execute(
-                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", _volume)
+                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", (_volume,))
                 cursor.execute(
-                    "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", _volume)
+                    "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", (_volume,))
                 (new_volume_id,) = cursor.fetchone()
                 volumes[_volume] = new_volume_id
 
             # Add new data
-            query = """INSERT INTO hgi_lustre_usage_new.direcory (project_name, directory_path, num_files,
-            size, last_modified, pi_id, volume_id, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"""
+            query = """INSERT INTO hgi_lustre_usage_new.directory (project_name, directory_path, num_files,
+            size, last_modified, pi_id, volume_id, group_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
 
             cursor.execute(query, (
                 _project,
@@ -138,15 +145,11 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                 _mtime,
                 db_pi,
                 volumes[_volume],
-                groups[_unix_group]
+                db_group
             ))
 
             # Get the new directory_id back, so we can add file types
-            # Technically, this might not be unique, but searching by directory is a big no-no cause it could be NULL
-            # So, searching by number of files because it is _very probably_ unique
-            cursor.execute(
-                "SELECT directory_id FROM hgi_lustre_usage_new.directory WHERE project_name = ? AND num_files = ?", _project, _files)
-            (new_id,) = cursor.fetchone()
+            (new_id,) = cursor.lastrowid
 
             # Add the file sizes
             # Although these are in the DB with foreign keys, we'll hardcode them here
@@ -160,11 +163,11 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             """
 
             cursor.execute("""INSERT INTO hgi_lustre_usage_new.file_size (directory_id, filetype_id, size) 
-            VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?);""", (
+            VALUES (%s, %s, %s), (%s, %s, %s), (%s, %s, %s), (%s, %s, %s);""", (
                 new_id, 1, _bam, new_id, 2, _cram, new_id, 3, _vcf, new_id, 4, _pedbed
             ))
 
-    db_conn.commit()
+            db_conn.commit()
 
     # Now we've added all the new data, we can delete all the old data
     # This is data where the project is prefixed with `.hgi.old.`
@@ -175,6 +178,9 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                     )""")
 
     cursor.execute(
-        "DELETE FROM hgi_lustre_usage_new.directory WHERE project_name LIKE '.hgi.old%")
+        "DELETE FROM hgi_lustre_usage_new.directory WHERE project_name LIKE '.hgi.old%'")
+
+    db_conn.commit()
 
     # and we're done.
+    print("Added data to MySQL Database")

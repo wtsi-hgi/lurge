@@ -62,8 +62,9 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
     with gzip.open(report_path, "rt") as mpistat:
         for line in mpistat:
             lines_read += 1
-            if lines_read % 20000000 == 0:
-                print(f"Read {lines_read} from mpistat for {scratch_disk}")
+            if lines_read % 5000000 == 0:
+                print(
+                    f"Read {lines_read} lines from mpistat for {scratch_disk}", flush=True)
             line_info = line.split()
 
             """
@@ -82,8 +83,11 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
             10      Device ID
             """
 
-            entry_path = base64.b64decode(line_info[0]).decode(
-                "UTF-8", "replace").strip("/")
+            try:
+                entry_path = base64.b64decode(line_info[0]).decode(
+                    "UTF-8", "replace").strip("/")
+            except:
+                continue
 
             # If the entry path doesn't contain a target directory
             # then we don't care about the entry, and its skipped
@@ -107,7 +111,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
             except IndexError:
                 _depth = depth
 
-            directory = "/".join(short_path.split("/")[:_depth])
+            directory = "/".join(_dir[:_depth])
 
             # Directory
             if line_info[7] == "d":
@@ -231,7 +235,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
             )
 
             for mapping in mappings:
-                volume = list(mapping.values()[0]["volume"])
+                volume = list(mapping.values()[0].scratch_disk)
                 directories_info[volume] = mapping
 
     else:
