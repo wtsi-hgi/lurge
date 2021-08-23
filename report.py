@@ -18,21 +18,14 @@ import utils.tsv
 # importing report_config.py file, not a library
 import report_config as config
 
+from directory_config import DATABASE_NAME, REPORT_DIR, VOLUMES
+
 # This script should be executed by manager.py. If you want to run it
 # directly, you need to execute it like so:
 # python3 report.py [date] [filename list]
 # [date] needs to be an ISO date string (ie, "2019-09-21")
 # [filename list] needs to be a list of mpistat output files
 # (ie, latest-119.dat.gz latest-118.dat.gz etc)
-
-# full path and filename of the SQLite database each process will access.
-# Shouldn't really ever be changed, but it's here in case Lustre changes
-DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
-# report directory where the lastest mpistat output file can be found
-# and where the report file will be placed
-REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
-
-VOLUMES = [114, 115, 118, 119, 123]
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:

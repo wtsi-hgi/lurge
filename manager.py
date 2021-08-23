@@ -6,17 +6,7 @@ import os
 import sys
 import typing as T
 
-# mpistat output files
-MPISTAT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
-
-# where the reports get generated
-REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
-
-# how many days back the script will look for
-MAX_DAYS_AGO = 10
-
-# scratch disks to look through
-VOLUMES = [114, 115, 118, 119, 123]
+from directory_config import MPISTAT_DIR, REPORT_DIR, MAX_DAYS_AGO, VOLUMES
 
 
 def all_exists(mpi_date: str) -> bool:

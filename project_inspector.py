@@ -17,21 +17,8 @@ from lurge_types.directory_report import DirectoryReport
 
 import report_config as config
 
-REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
+from directory_config import MPISTAT_DIR, PROJECT_DIRS, ALL_PROJECTS
 
-PROJECT_DIRS = {
-    'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
-    'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
-    'lustre/scratch115/teams': 'lustre/scratch115/realdata/mdt[0-9]/teams',
-    'lustre/scratch119/humgen/teams': 'lustre/scratch119/realdata/mdt[0-9]/teams'
-}
-
-ALL_PROJECTS = {
-    '114': ["lustre/scratch114/projects", "lustre/scratch114/teams"],
-    '115': ["lustre/scratch115/realdata/mdt[0-9]/projects", "lustre/scratch115/realdata/mdt[0-9]/teams"],
-    '118': ["lustre/scratch118/humgen/hgi/projects", "lustre/scratch118/humgen/old-team-data"],
-    '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"]
-}
 
 # Regexs for File Types
 BAM = re.compile("\.(bam|sam)(\.gz)?$")
@@ -53,7 +40,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
     segmented_path = paths[0].split("/")
     scratch_disk = "/".join(segmented_path[0:2])
     root_parent = "/".join(segmented_path[0:-1])
-    report_path = utils.finder.findReport(scratch_disk, REPORT_DIR)
+    report_path = utils.finder.findReport(scratch_disk, MPISTAT_DIR)
 
     directory_reports: T.Dict[str, DirectoryReport] = {}
 
@@ -246,7 +233,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
     if tosql:
         db_conn = db.common.getSQLConnection(config)
         db.inspector.load_inspections_into_sql(
-            db_conn, directories_info, volume, REPORT_DIR)
+            db_conn, directories_info, volume, MPISTAT_DIR)
     else:
         # Printing to stdout
         print("Last modified is relative to mpistat, so may be a few days off")
@@ -258,7 +245,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
         for volume in directories_info:
             utils.table.print_table(
-                directories_info[volume], volume, mode, REPORT_DIR)
+                directories_info[volume], volume, mode, MPISTAT_DIR)
 
 
 if __name__ == "__main__":
