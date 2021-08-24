@@ -3,7 +3,11 @@ import base64
 import sys
 import typing as T
 
+import db.common
+import db.puppeteer
 import utils.finder
+
+import report_config as config
 
 from lurge_types.vault import VaultPuppet
 from directory_config import VOLUMES, MPISTAT_DIR
@@ -62,8 +66,9 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         path = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
         vault_reports[volume] = processVault(path)
 
-    # TODO: Write Vault Reports to Database
-    print(vault_reports)
+    # Write to MySQL database
+        db_conn = db.common.getSQLConnection(config)
+        db.puppeteer.write_to_db(db_conn, vault_reports)
 
 
 if __name__ == "__main__":
