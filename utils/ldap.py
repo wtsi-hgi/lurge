@@ -12,6 +12,7 @@ def getLDAPConnection():
 
 
 def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]]:
+    # Ask the Sanger LDAP for Humgen Groups
     results: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                                                              ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
                                                              ["gidNumber", "sangerProjectPI", "cn"])
@@ -20,6 +21,7 @@ def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]
     group_pis: T.Dict[str, str] = {}
     group_names: T.Dict[str, str] = {}
 
+    # Put the group names and PIs into maps with the group ID
     for entry in results:
         gidNumber = entry[1]["gidNumber"][0].decode("UTF-8", "replace")
         group_name = entry[1]["cn"][0].decode("UTF-8", "replace")
@@ -36,6 +38,7 @@ def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]
 
     pi_sn: T.Dict[str, str] = {}
 
+    # Ask the Sanger LDAP for PI surnames
     for PIuid in PIuids:
         surname_result = ldap_con.search_s(
             "ou=people,dc=sanger,dc=ac,dc=uk", ldap.SCOPE_ONELEVEL, f"(uid={PIuid})", ["sn"])
@@ -43,6 +46,7 @@ def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]
         surname = surname_result[0][1]["sn"][0].decode("UTF-8")
         pi_sn[PIuid] = surname
 
+    # Replace PI IDs with names
     for gid in group_pis:
         if group_pis[gid] is not None:
             group_pis[gid] = pi_sn[group_pis[gid]]
@@ -51,6 +55,7 @@ def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]
 
 
 def add_humgen_ldap_to_db(ldap_con, tmp_db: sqlite3.Connection) -> None:
+    # Add all the LDAP information to the temporary sqlite database
     db_cursor = tmp_db.cursor()
     db_cursor.execute(
         "CREATE TABLE group_table(gidNumber INTEGER PRIMARY KEY, groupName TEXT, PI TEXT);")

@@ -69,6 +69,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
         "UPDATE hgi_lustre_usage_new.directory SET project_name = (SELECT CONCAT('.hgi.old.', project_name));")
     db_conn.commit()
 
+    # We're now going to go through all the DirectoryReports we have
     for directory_info in vol_directory_info.values():
         paths = list(directory_info.keys())
         paths.sort()

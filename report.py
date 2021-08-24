@@ -15,7 +15,6 @@ import db.report
 import utils.ldap
 import utils.tsv
 
-# importing report_config.py file, not a library
 import report_config as config
 
 from directory_config import DATABASE_NAME, REPORT_DIR, VOLUMES
@@ -199,6 +198,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
 
 
 def generate_tables(tmp_db: sqlite3.Connection):
+    # Create the temporary sqlite database tables
     db_cursor = tmp_db.cursor()
     for vol in VOLUMES:
         print(f"Creating table scratch{vol}")
@@ -233,10 +233,8 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
     # Create the tables in the temporary DB
     generate_tables(tmp_db)
 
-    # creates a process pool which will concurrently execute 4 processes
-    # NOTE: If resources permit, change this to the number of mpistat files
-    # that are going to be processed
-    # Make sure to change the bsub script to ask for more cores too
+    # creates a process pool which will concurrently execute 5 processes
+    # to read each mpistat file
     pool = multiprocessing.Pool(processes=5)
 
     print("Starting mpistat processors...", flush=True)

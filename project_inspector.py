@@ -37,6 +37,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
     humgen_pis, humgen_groups = names
 
+    # Format paths and find the mpistat report
     segmented_path = paths[0].split("/")
     scratch_disk = "/".join(segmented_path[0:2])
     root_parent = "/".join(segmented_path[0:-1])
@@ -44,6 +45,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
     directory_reports: T.Dict[str, DirectoryReport] = {}
 
+    # Reading over every line in the mpistat report
     print(f"Reading mpistat output {report_path}")
     lines_read = 0
     with gzip.open(report_path, "rt") as mpistat:
@@ -108,6 +110,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
                 group = humgen_groups[line_info[3]
                                       ] if line_info[3] in humgen_groups else None
 
+                # Create entries for the directory, and all parent directories
                 if directory not in directory_reports:
                     directory_reports[directory] = DirectoryReport(
                         files=1, mtime=int(line_info[5]), scratch_disk=scratch_disk)
@@ -136,6 +139,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
                 group = humgen_groups[line_info[3]
                                       ] if line_info[3] in humgen_groups else None
 
+                # Create entry for file and all parent directories
                 if directory not in directory_reports:
                     directory_reports[directory] = DirectoryReport(
                         files=0,
@@ -210,6 +214,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
     directories_info: T.Dict[str, T.Dict[str, DirectoryReport]] = {}
 
+    # Create a multiprocessing pool to process each mpistat file concurrently
     if path is None:
         with multiprocessing.Pool() as pool:
             mappings = pool.starmap(
@@ -231,6 +236,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
             [path], humgen_names, depth)
 
     if tosql:
+        # Write to MySQL database
         db_conn = db.common.getSQLConnection(config)
         db.inspector.load_inspections_into_sql(
             db_conn, directories_info, volume, MPISTAT_DIR)
