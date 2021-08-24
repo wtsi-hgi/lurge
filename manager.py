@@ -3,6 +3,8 @@
 import os
 import sys
 
+import typing as T
+
 from directory_config import MPISTAT_DIR, REPORT_DIR, VOLUMES
 
 
@@ -14,26 +16,31 @@ def all_exists(mpi_date: str) -> bool:
     return True
 
 
-def main(mode: str) -> None:
+def main(modes: T.Set[str]) -> None:
     # Remove any leftover sqlite files
     try:
         os.remove(f"{REPORT_DIR}_lurge_tmp_sqlite.db")
     except FileNotFoundError:
         pass
 
-    if mode in ["report", "both"]:
+    if "reporter" in modes:
         # Run report generator
         import report
         report.main()
 
-    if mode in ["inspector", "both"]:
+    if "inspector" in modes:
         import project_inspector
         project_inspector.main(tosql=True)
 
+    if "puppeteer" in modes:
+        import puppeteer
+        puppeteer.main()
+
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] in ["inspector", "report", "both"]:
-        main(sys.argv[1])
-    else:
-        sys.exit(
-            "Must be run in form: python manager.py {report|inspector|both}")
+    if len(sys.argv == 1):
+        sys.exit("Running modes must be provided, inspector, reporter, puppeteer")
+    for arg in sys.argv[1:]:
+        if arg not in ["reporter", "inspector", "puppeteer"]:
+            sys.exit("Available running modes are inspector, reporter, puppeteer")
+    main(set(sys.argv[1:]))
