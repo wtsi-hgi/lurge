@@ -3,6 +3,8 @@ import base64
 import sys
 import typing as T
 
+import utils.finder
+
 from lurge_types.vault import VaultPuppet
 from directory_config import VOLUMES, MPISTAT_DIR
 
@@ -50,10 +52,15 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
 
 
 def main(volumes: T.List[int] = VOLUMES) -> None:
+    vault_reports: T.Dict[int, T.Dict[str, VaultPuppet]] = {}
+    # TODO: Multiprocessing
     for volume in volumes:
         # Find path to pass
-        path = ""
-        processVault(path)
+        path = utils.finder.findReport(f"scratch{volume}")
+        vault_reports[volume] = processVault(path)
+
+    # TODO: Write Vault Reports to Database
+    print(vault_reports)
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
