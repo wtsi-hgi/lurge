@@ -47,10 +47,21 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                     rel_path = base64.b64decode(
                         path_elems[-1].split("-")[1]).decode("UTF-8", "replace")
                 except:
-                    # TODO
+                    # TODO (also find specific error)
                     continue
 
                 full_path = "/".join(path_elems[:vault_loc]) + "/" + rel_path
+
+                # Grab the inode and all its nice data
+                encoded_inode = "".join(path_elems[vault_loc:]).split("-")[0]
+                encoded_inode = encoded_inode.replace("_", "/")
+                try:
+                    inode = base64.b64decode(encoded_inode).decode("UTF-8", "replace")
+                except:
+                    # TODO (also find specific error)
+                    continue
+
+                # TODO inode details
 
                 master_of_puppets[full_path] = VaultPuppet(
                     path_elems[vault_loc + 1])
