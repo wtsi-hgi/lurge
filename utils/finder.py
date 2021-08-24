@@ -2,21 +2,20 @@ import datetime
 import os
 import typing as T
 
+from directory_config import MAX_DAYS_AGO
+
 
 def findReport(scratch_disk: str, report_dir: str):
-    date = datetime.date.today()
-
-    # This assumes that at some point, there is a file to be found
-    # Just getting the numbers of /lustre/scratchXXX
+    days_ago = 0
     volume = scratch_disk[-3:]
-    while not os.path.isfile(f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.dat.gz"):
-        date -= datetime.timedelta(days=1)
-
-    if date != datetime.date.today():
-        print(
-            f"Couldn't find mpistat output for today, used {date.strftime('%Y%m%d')}")
-
-    return f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.dat.gz"
+    while days_ago < MAX_DAYS_AGO:
+        date = datetime.date.today() - datetime.timedelta(days=days_ago)
+        proposed_file = f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.dat.gz"
+        if not os.path.isfile(proposed_file):
+            days_ago += 1
+        else:
+            print(f"using mpistat output for {date.strftime('%Y%m%d')}")
+            return proposed_file
 
 
 def getParents(directory: str) -> T.List[str]:

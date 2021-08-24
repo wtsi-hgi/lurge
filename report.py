@@ -12,19 +12,13 @@ import ldap
 
 import db.common
 import db.report
+import utils.finder
 import utils.ldap
 import utils.tsv
 
 import report_config as config
 
-from directory_config import DATABASE_NAME, REPORT_DIR, VOLUMES
-
-# This script should be executed by manager.py. If you want to run it
-# directly, you need to execute it like so:
-# python3 report.py [date] [filename list]
-# [date] needs to be an ISO date string (ie, "2019-09-21")
-# [filename list] needs to be a list of mpistat output files
-# (ie, latest-119.dat.gz latest-118.dat.gz etc)
+from directory_config import DATABASE_NAME, MPISTAT_DIR, REPORT_DIR, VOLUMES
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:
@@ -84,7 +78,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
     }
 
-    with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
+    with gzip.open(MPISTAT_DIR+mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
         # fields:
         # base64 encoded path, file size, owner uid, owner gid, last access time,
@@ -212,17 +206,27 @@ def generate_tables(tmp_db: sqlite3.Connection):
     print("created tables")
 
 
-def main(date: str, mpistat_files: T.List[str]) -> None:
+def main() -> None:
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
     print("Establishing MySQL connection...")
     sql_db = db.common.getSQLConnection(config)
 
-    try:
-        db.report.checkReportDate(sql_db, date, DATABASE_NAME)
-    except FileExistsError:
-        return
+    # Finding most recent mpistat files for each volume
+    # We only care if the most recent mpistat file isn't already in the database
+    mpistat_files: T.List[str] = []
+    mpistat_dates: T.Dict[int, datetime.date] = {}
+
+    for volume in VOLUMES:
+        latest_mpi = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
+        mpi_date_str = latest_mpi.split("_")[0]
+        mpi_date = datetime.date(int(mpi_date_str[:4]), int(
+            mpi_date_str[4:6]), int(mpi_date_str[6:8]))
+
+        if not db.report.checkReportDate(sql_db, mpi_date, volume):
+            mpistat_files.append(latest_mpi)
+            mpistat_dates[volume] = mpi_date
 
     print("Establishing LDAP connection...")
     ldap_con = utils.ldap.getLDAPConnection()
@@ -281,7 +285,7 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
     date = "{0:%Y-%m-%d}".format(date_unix)
 
     print("Transferring report data to MySQL database...")
-    db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, date)
+    db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, mpistat_dates)
 
     print("Writing report data to .tsv file...")
     utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR)
@@ -295,13 +299,4 @@ def main(date: str, mpistat_files: T.List[str]) -> None:
 
 
 if __name__ == "__main__":
-    # ignore first argument (the name of the script)
-    # second argument is the date, all other arguments are file names
-    date = sys.argv[1]
-    mpistat_files = sys.argv[2:]
-
-    # checks if 'date' is formatted correctly
-    if re.search("\d\d\d\d-\d\d-\d\d", date) is None:
-        exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
-
-    main(date, mpistat_files)
+    main()

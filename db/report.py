@@ -1,4 +1,4 @@
-import os
+import datetime
 from collections import defaultdict
 import sqlite3
 import typing as T
@@ -6,7 +6,7 @@ import typing as T
 import mysql.connector
 
 
-def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, db_name: str):
+def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, volume: int):
     """
     Checks the dates in the MySQL database, and stops the program if date 'date'
     is already recorded.
@@ -16,16 +16,17 @@ def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, db_name:
     """
     sql_cursor = sql_db.cursor()
     sql_cursor.execute(
-        "SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage")
+        """SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage
+        INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
+        WHERE scratch_disk = %s""", (f"scratch{volume}",))
 
     for result in sql_cursor:
         if (date == result):
-            os.remove(db_name)
-            raise FileExistsError("Report for date {} already found in MySQL database! \
-                Exiting.".format(date))
+            return True
+    return False
 
 
-def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], date: str):
+def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], mpistat_dates: T.Dict[int, datetime.date]):
     """
     Reads the contents of tables in tmp_db and writes them to a MySQL database.
 
@@ -112,7 +113,7 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
             sql_cursor.execute(query, (
                 size,
                 quota,
-                date,
+                mpistat_dates[int(volume[-3:])],
                 archived is not None,
                 last_mod,
                 pi,
@@ -121,4 +122,4 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
             ))
 
     sql_db.commit()
-    print("Report data for {} loaded into MySQL.".format(date))
+    print("Report data loaded into MySQL.")
