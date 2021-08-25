@@ -6,7 +6,7 @@ import typing as T
 import mysql.connector
 
 
-def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, volume: int):
+def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date, volume: int):
     """
     Checks the dates in the MySQL database, and stops the program if date 'date'
     is already recorded.
@@ -20,8 +20,9 @@ def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: str, volume: 
         INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
         WHERE scratch_disk = %s""", (f"scratch{volume}",))
 
-    for result in sql_cursor:
+    for (result,) in sql_cursor:
         if (date == result):
+            print(f"{volume} already has DB data for {date}")
             return True
     return False
 

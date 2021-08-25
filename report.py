@@ -50,7 +50,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
     result = db_cursor.fetchall()
 
-    volume = f"scratch{mpi_file.split('.')[0].split('-')[1]}"
+    volume = f"scratch{mpi_file.split('/')[-1].split('.')[0].split('_')[1]}"
 
     groups: T.Dict[str, T.Dict[str, T.Any]] = {}
     for row in result:
@@ -78,7 +78,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
     }
 
-    with gzip.open(MPISTAT_DIR+mpi_file, 'rt') as mpi_text:
+    with gzip.open(mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
         # fields:
         # base64 encoded path, file size, owner uid, owner gid, last access time,
@@ -105,25 +105,31 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
                     # which makes it show a hard link count of 0.
                     pass
 
-                # only update the group's last edit time if it's more recent
-                if (int(line[5]) > groups[gid]['lastModified']):
-                    # make sure the timestamp isn't in the future
-                    now = datetime.datetime.now()
-                    now_unix = int(datetime.datetime.timestamp(now))
-                    if(now_unix > int(line[5])):
-                        groups[gid]['lastModified'] = int(line[5])
+                try:
+                    # only update the group's last edit time if it's more recent
+                    if (int(line[5]) > groups[gid]['lastModified']):
+                        # make sure the timestamp isn't in the future
+                        now = datetime.datetime.now()
+                        now_unix = int(datetime.datetime.timestamp(now))
+                        if(now_unix > int(line[5])):
+                            groups[gid]['lastModified'] = int(line[5])
+                except ValueError:
+                    continue
             except KeyError:
                 # the first time the group appears, add it to the dictionary
                 # its name will be found later
-                groups[gid] = {'groupName': None, 'PIname': None,
-                               'volumeSize': int(line[1]), 'lastModified': int(line[5]),
-                               'volume': volume, 'isHumgen': False}
+                try:
+                    groups[gid] = {'groupName': None, 'PIname': None,
+                                   'volumeSize': int(line[1]), 'lastModified': int(line[5]),
+                                   'volume': volume, 'isHumgen': False}
+                except IndexError:
+                    continue
 
             lines_processed += 1
 
     # gets the Unix timestamp of when the mpistat file was created
     # int() truncates away the sub-second measurements
-    mpistat_date_unix = int(os.stat(REPORT_DIR+mpi_file).st_mtime)
+    mpistat_date_unix = int(os.stat(mpi_file).st_mtime)
     group_data: T.List[T.Tuple[T.Any, ...]] = []
     for gid in groups:
         gidNumber = gid
@@ -133,8 +139,11 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         if (groupName == None):
             # connection times out too quickly to be declared elsewhere
             ldap_con = utils.ldap.getLDAPConnection()
-            result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                                       ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+            try:
+                result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+                                           ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+            except ValueError:
+                continue
             try:
                 groupName = result[0][1]['cn'][0].decode('UTF-8')
             except IndexError:
@@ -220,7 +229,7 @@ def main() -> None:
 
     for volume in VOLUMES:
         latest_mpi = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
-        mpi_date_str = latest_mpi.split("_")[0]
+        mpi_date_str = latest_mpi.split("/")[-1].split("_")[0]
         mpi_date = datetime.date(int(mpi_date_str[:4]), int(
             mpi_date_str[4:6]), int(mpi_date_str[6:8]))
 
@@ -278,11 +287,7 @@ def main() -> None:
     tmp_db.commit()
     print("added data to temporary database")
 
-    # finds the last modified date of some mpistat file
-    date_unix = datetime.datetime.utcfromtimestamp(int(os.stat(
-        REPORT_DIR+mpistat_files[0]).st_mtime))
-
-    date = "{0:%Y-%m-%d}".format(date_unix)
+    date = datetime.date.today().strftime("%Y-%m-%d")
 
     print("Transferring report data to MySQL database...")
     db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, mpistat_dates)

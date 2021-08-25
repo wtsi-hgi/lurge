@@ -14,7 +14,8 @@ def findReport(scratch_disk: str, report_dir: str):
         if not os.path.isfile(proposed_file):
             days_ago += 1
         else:
-            print(f"using mpistat output for {date.strftime('%Y%m%d')}")
+            print(
+                f"{scratch_disk}: using mpistat output for {date.strftime('%Y%m%d')}")
             return proposed_file
 
 
