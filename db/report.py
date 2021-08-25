@@ -14,7 +14,7 @@ def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date
     :param sql_db: MySQL connection to check for reports
     :param date: The date of the report to be produced
     """
-    sql_cursor = sql_db.cursor()
+    sql_cursor = sql_db.cursor(buffered=True)
     sql_cursor.execute(
         """SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage
         INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
