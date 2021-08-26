@@ -33,3 +33,45 @@ class VaultPuppet:
     @property
     def __repr__(self) -> str:
         return str(self.__dict__)
+
+
+class MPIStatFile:
+    @classmethod
+    def find_vaults(root: "MPIStatFile") -> T.Set["MPIStatFile"]:
+        vaults: T.Set[MPIStatFile] = set()
+        if root.path_elems[-1] == ".vault":
+            vaults.add(root)
+        for child in root.children.values():
+            vaults = vaults.union(MPIStatFile.find_vaults(child))
+        return vaults
+
+    def __init__(self, path, inode):
+        self.path = path
+        self.inode = inode
+        self.children: T.Dict[str, MPIStatFile] = {}
+
+    @property
+    def path_elems(self):
+        return self.path.split("/")
+
+    def __len__(self):
+        return len(self.path_elems)
+
+    def insert_child(self, new_file: "MPIStatFile"):
+        current_path_length = len(self)
+        if current_path_length + 1 == len(new_file):
+            self.children[new_file.path_elems[-1]] = new_file
+        else:
+            self.children[new_file.path_elems[current_path_length]
+                          ].add_child(new_file)
+
+    @property
+    def __dict__(self):
+        return {
+            "path": self.path,
+            "inode": self.inode,
+            "children": self.children
+        }
+
+    def __repr__(self):
+        return str(self.__dict__)
