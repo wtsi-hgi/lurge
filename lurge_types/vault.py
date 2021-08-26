@@ -7,19 +7,25 @@ import utils
 
 
 class VaultPuppet:
-    def __init__(self, full_path: str, state: str, inode: int):
+    @staticmethod
+    def from_mpistat(mpistat_file: "MPIStatFile", state: str) -> "VaultPuppet":
+        return VaultPuppet(
+            full_path=mpistat_file.path,
+            state=state,
+            inode=mpistat_file.inode,
+            size=mpistat_file.size,
+            owner=mpistat_file.owner,
+            mtime=mpistat_file.mtime
+        )
+
+    def __init__(self, full_path: str, state: str, inode: int, size: int, owner: str, mtime: int):
         self.full_path: str = full_path
         self.state: str = state
         self._inode: int = inode
 
-        self.size: T.Optional[str] = None
-        self.owner: T.Optional[int] = None
-        self.mtime: T.Optional[datetime.date] = None
-
-    def just_call_my_name(self, size: int, owner: str, mtime: int):
-        self.size = utils.humanise(size)
-        self.owner = owner
-        self.mtime = datetime.utcfromtimestamp(mtime).date()
+        self.size: str = utils.humanise(size)
+        self.owner: str = owner
+        self.mtime: datetime.date = datetime.utcfromtimestamp(mtime).date()
 
     @property
     def __dict__(self) -> T.Dict[str, T.Any]:
@@ -40,6 +46,18 @@ class VaultPuppet:
 class MPIStatFile:
     @staticmethod
     def from_mpistat(line_info: T.List[T.Any]):
+        """
+        mpistat lines
+        Index   Item
+        0       Filepath (base 64 encoded)
+        1       Size (bytes)
+        2       Owner (ID)
+        ...
+        5       Last Modified Time (Unix)
+        ...
+        8       Inode ID
+        ...
+        """
         filepath = base64.b64decode(
             line_info[0]).decode("UTF-8", "replace")
 
@@ -68,6 +86,21 @@ class MPIStatFile:
         for child in root.children.values():
             files = files.union(MPIStatFile.find_files(child))
         return files
+
+    @staticmethod
+    def find_by_path(root: "MPIStatFile", path: str) -> "MPIStatFile":
+        path = path.strip("/")
+        current_path_length = len(root)
+        if current_path_length + 1 == len(path.split("/")):
+            try:
+                return root.children[path.split("/")[-1]]
+            except KeyError:
+                raise FileNotFoundError
+        else:
+            try:
+                return MPIStatFile.find_by_path(root.children[path.split("/")[current_path_length]], path)
+            except IndexError:
+                raise FileNotFoundError
 
     def __init__(self, path, inode, size, owner, mtime):
         self.path = path.strip("/")

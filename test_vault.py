@@ -66,6 +66,20 @@ class TestMPIWalker(unittest.TestCase):
             "b/.vault/vault"
         })
 
+    def test_find_file_by_path(self):
+        root = create_file_structure()
+        expected = [
+            "a/a/b/b/a",
+            "b/a/a/b/b",
+            "b/b/a/a"
+        ]
+        got = [
+            MPIStatFile.find_by_path(root, "/a/a/b/b/a").path,
+            MPIStatFile.find_by_path(root, "/b/a/a/b/b").path,
+            MPIStatFile.find_by_path(root, "/b/b/a/a").path
+        ]
+        self.assertEqual(got, expected)
+
 
 if __name__ == '__main__':
     unittest.main()
