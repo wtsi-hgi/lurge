@@ -1,4 +1,6 @@
+import base64
 import datetime
+from os import stat
 import typing as T
 
 import utils
@@ -36,10 +38,43 @@ class VaultPuppet:
 
 
 class MPIStatFile:
+    @staticmethod
+    def from_mpistat(line_info: T.List[T.Any]):
+        filepath = base64.b64decode(
+            line_info[0]).decode("UTF-8", "replace")
 
-    def __init__(self, path, inode):
+        return MPIStatFile(
+            path=filepath,
+            inode=int(line_info[8]),
+            size=int(line_info[1]),
+            owner=line_info[2],
+            mtime=int(line_info[5])
+        )
+
+    @staticmethod
+    def find_vaults(root: "MPIStatFile") -> T.Set["MPIStatFile"]:
+        vaults: T.Set[MPIStatFile] = set()
+        if root.path_elems[-1] == ".vault":
+            vaults.add(root)
+        for child in root.children.values():
+            vaults = vaults.union(MPIStatFile.find_vaults(child))
+        return vaults
+
+    @staticmethod
+    def find_files(root: "MPIStatFile") -> T.Set["MPIStatFile"]:
+        files: T.Set[MPIStatFile] = set()
+        if len(root.children) == 0:
+            files.add(root)
+        for child in root.children.values():
+            files = files.union(MPIStatFile.find_files(child))
+        return files
+
+    def __init__(self, path, inode, size, owner, mtime):
         self.path = path.strip("/")
         self.inode = inode
+        self.size = size
+        self.owner = owner
+        self.mtime = mtime
         self.children: T.Dict[str, MPIStatFile] = {}
 
     @property
@@ -63,17 +98,8 @@ class MPIStatFile:
     def __dict__(self):
         return {
             "path": self.path,
-            "inode": self.inode,
             "children": self.children
         }
 
     def __repr__(self):
         return str(self.__dict__)
-
-    def find_vaults(self) -> T.Set["MPIStatFile"]:
-        vaults: T.Set[MPIStatFile] = set()
-        if self.path_elems[-1] == ".vault":
-            vaults.add(self)
-        for child in self.children.values():
-            vaults = vaults.union(MPIStatFile.find_vaults(child))
-        return vaults

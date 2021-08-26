@@ -1,5 +1,6 @@
 import gzip
 import base64
+from os import path
 import sys
 import typing as T
 
@@ -9,7 +10,7 @@ import utils.finder
 
 import report_config as config
 
-from lurge_types.vault import VaultPuppet
+from lurge_types.vault import MPIStatFile, VaultPuppet
 from directory_config import VOLUMES, MPISTAT_DIR
 
 # If Vault has Enter Sandman references in, I'm putting Master of Puppets references here,
@@ -18,6 +19,7 @@ from directory_config import VOLUMES, MPISTAT_DIR
 
 def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
+    root: T.Optional[MPIStatFile] = None
 
     with gzip.open(report_path, "rt") as mpistat:
         lines_read: int = 0
@@ -39,6 +41,17 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                 continue
 
             path_elems = filepath.split("/")
+
+            try:
+                if lines_read == 1:
+                    root = MPIStatFile.from_mpistat(mpi_line_info)
+                else:
+                    root.insert_child(MPIStatFile.from_mpistat(mpi_line_info))
+            except:
+                continue  # base64 can throw error
+
+            vaults: T.Set[MPIStatFile] = MPIStatFile.find_vaults(root)
+
             # we need a file in a .vault directory, and a `-` in the last
             # part of the filename, so we know its a full file
             if ".vault" in path_elems and "-" in path_elems[-1]:
