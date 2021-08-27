@@ -1,6 +1,5 @@
 import gzip
 import base64
-from os import path
 import sys
 import typing as T
 
@@ -10,7 +9,7 @@ import utils.finder
 
 import report_config as config
 
-from lurge_types.vault import MPIStatFile, VaultPuppet
+from lurge_types.vault import VaultPuppet
 from directory_config import VOLUMES, MPISTAT_DIR
 
 # If Vault has Enter Sandman references in, I'm putting Master of Puppets references here,
@@ -19,7 +18,6 @@ from directory_config import VOLUMES, MPISTAT_DIR
 
 def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
-    root: T.Optional[MPIStatFile] = None
 
     with gzip.open(report_path, "rt") as mpistat:
         lines_read: int = 0
@@ -35,51 +33,57 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
             mpi_line_info = line.split()
 
             try:
-                if lines_read == 1:
-                    root = MPIStatFile.from_mpistat(mpi_line_info)
-                else:
-                    root.insert_child(MPIStatFile.from_mpistat(mpi_line_info))
+                filepath = base64.b64decode(
+                    mpi_line_info[0]).decode("UTF-8", "replace")
             except:
-                continue  # base64 can throw error
-
-    vaults: T.Set[MPIStatFile] = MPIStatFile.find_vaults(root)
-
-    # Let's now decode all the vault information
-    for vault in vaults:
-        trackers: T.Set[MPIStatFile] = MPIStatFile.find_files(vault)
-        for tracker in trackers:
-            vault_loc = tracker.path_elems.index(".vault")
-            try:
-                rel_path = base64.b64decode(
-                    tracker.path_elems[-1].split("-")[1].replace("_", "/")).decode("UTF-8", "replace")
-            except:
-                # TODO
                 continue
 
-            full_path = "/".join(
-                tracker.path_elems[:vault_loc]) + "/" + rel_path
+            path_elems = filepath.split("/")
+            # we need a file in a .vault directory, and a `-` in the last
+            # part of the filename, so we know its a full file
+            if ".vault" in path_elems and "-" in path_elems[-1]:
+                vault_loc = path_elems.index(".vault")
+                try:
+                    rel_path = base64.b64decode(
+                        path_elems[-1].split("-")[1]).decode("UTF-8", "replace").replace("_", "/")
+                except:
+                    # TODO (also find specific error)
+                    continue
 
-            # Get the inode from vault, to check they match later with the file
-            encoded_inode = "".join(
-                tracker.path_elems[vault_loc:]).split("-")[0]
-            try:
-                inode = int(encoded_inode, 16)
-            except ValueError:
-                # TODO
-                continue
+                full_path = "/".join(path_elems[:vault_loc]) + "/" + rel_path
 
-            # Find the original file
-            try:
-                tracked_file = MPIStatFile.find_by_path(root, full_path)
-            except FileNotFoundError:
-                # TODO
-                continue
+                # Grab the inode
+                encoded_inode = "".join(path_elems[vault_loc:]).split("-")[0]
+                try:
+                    inode = int(encoded_inode, 16)
+                except ValueError:
+                    # TODO
+                    continue
 
-            if inode != tracked_file.inode:
-                # TODO
-                continue
-            master_of_puppets[inode] = VaultPuppet.from_mpistat(
-                tracked_file, tracker.path_elems[vault_loc + 1])
+                master_of_puppets[inode] = VaultPuppet(
+                    full_path=full_path,
+                    state=path_elems[vault_loc + 1],
+                    inode=inode)
+
+            elif int(mpi_line_info[8]) in master_of_puppets:
+                """
+                mpistat lines
+                Index   Item
+                0       Filepath (base 64 encoded)
+                1       Size (bytes)
+                2       Owner (ID)
+                ...
+                5       Last Modified Time (Unix)
+                ...
+                8       Inode ID
+                ...
+                """
+                puppet = master_of_puppets[int(mpi_line_info[8])]
+                puppet.just_call_my_name(
+                    size=int(mpi_line_info[1]),
+                    owner=mpi_line_info[2],
+                    mtime=int(mpi_line_info[5])
+                )
 
     return master_of_puppets
 
@@ -92,7 +96,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         path = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
         vault_reports[volume] = processVault(path)
 
-        # Write to MySQL database
+    # Write to MySQL database
         db_conn = db.common.getSQLConnection(config)
         db.puppeteer.write_to_db(db_conn, vault_reports)
 
