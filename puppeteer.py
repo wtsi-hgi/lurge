@@ -6,6 +6,7 @@ import typing as T
 import db.common
 import db.puppeteer
 import utils.finder
+import utils.ldap
 
 import report_config as config
 
@@ -54,7 +55,8 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                 full_path = "/".join(path_elems[:vault_loc]) + "/" + rel_path
 
                 # Grab the inode
-                encoded_inode = "".join(path_elems[vault_loc:]).split("-")[0]
+                encoded_inode = "".join(
+                    path_elems[vault_loc + 2:]).split("-")[0]
                 try:
                     inode = int(encoded_inode, 16)
                 except ValueError:
@@ -98,6 +100,10 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                     owner=mpi_line_info[2],
                     mtime=int(mpi_line_info[5])
                 )
+
+    ldap_conn = utils.ldap.getLDAPConnection()
+    for puppet in master_of_puppets.values():
+        puppet.pull_your_strings(ldap_conn)
 
     return master_of_puppets
 

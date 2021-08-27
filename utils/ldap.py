@@ -67,3 +67,10 @@ def add_humgen_ldap_to_db(ldap_con, tmp_db: sqlite3.Connection) -> None:
         db_cursor.execute(
             "INSERT INTO group_table (gidNumber, groupName, PI) VALUES (?, ?, ?)", (gid, groups[gid], pis[gid]))
     tmp_db.commit()
+
+
+def get_username(ldap_conn, uid: int) -> str:
+    result = ldap_conn.search_s(
+        "ou=people,dc=sanger,dc=ac,dc=uk", ldap.SCOPE_ONELEVEL, f"(uidNumber={uid})", ["uid"])
+
+    return result[0][1]["uid"][0].decode("UTF-8")
