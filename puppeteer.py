@@ -19,6 +19,7 @@ from directory_config import VOLUMES, MPISTAT_DIR
 def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
 
+    # 1st Run to Get Vaults
     with gzip.open(report_path, "rt") as mpistat:
         lines_read: int = 0
         for line in mpistat:
@@ -27,7 +28,7 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
             lines_read += 1
             if lines_read % 5000000 == 0:
                 print(
-                    f"Read {lines_read} lines from {report_path}", flush=True)
+                    f"Read {lines_read} lines from {report_path} - Run 1", flush=True)
 
             # Decode the Path, Split it and See If We Care
             mpi_line_info = line.split()
@@ -65,7 +66,20 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                     state=path_elems[vault_loc + 1],
                     inode=inode)
 
-            elif int(mpi_line_info[8]) in master_of_puppets:
+    # 2nd. Run to Get File Information
+    with gzip.open(report_path, "rt") as mpistat:
+        lines_read = 0
+        for line in mpistat:
+            # Logging
+            lines_read += 1
+            if lines_read % 5000000 == 0:
+                print(
+                    f"Read {lines_read} lines from {report_path} - Run 2", flush=True)
+
+            # Decode the Path, Split it and See If We Care
+            mpi_line_info = line.split()
+
+            if int(mpi_line_info[8]) in master_of_puppets:
                 """
                 mpistat lines
                 Index   Item
@@ -96,7 +110,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         path = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
         vault_reports[volume] = processVault(path)
 
-    # Write to MySQL database
+        # Write to MySQL database
         db_conn = db.common.getSQLConnection(config)
         db.puppeteer.write_to_db(db_conn, vault_reports)
 

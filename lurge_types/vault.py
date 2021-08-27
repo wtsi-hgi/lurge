@@ -30,6 +30,5 @@ class VaultPuppet:
             "mtime": self.mtime.strftime("%Y%m%d")
         }
 
-    @property
     def __repr__(self) -> str:
         return str(self.__dict__)
