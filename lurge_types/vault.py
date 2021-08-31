@@ -26,8 +26,11 @@ class VaultPuppet:
 
     def pull_your_strings(self, ldap_conn, groups):
         self.owner = utils.ldap.get_username(ldap_conn, self._owner_id)
-        self.group = groups[1][self._group_id] if self._group_id is not None else None
         self.state = self.state.capitalize()
+        try:
+            self.group = groups[self._group_id] if self._group_id is not None else None
+        except KeyError:
+            self.group = None
 
     @property
     def size(self) -> str:

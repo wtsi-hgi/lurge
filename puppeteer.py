@@ -1,5 +1,6 @@
 import gzip
 import base64
+import multiprocessing
 import sys
 import typing as T
 
@@ -17,7 +18,8 @@ from directory_config import VOLUMES, MPISTAT_DIR
 # because its the only other Metallica song I know
 
 
-def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
+def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
+    report_path = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
 
     # 1st Run to Get Vaults
@@ -88,6 +90,7 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                 0       Filepath (base 64 encoded)
                 1       Size (bytes)
                 2       Owner (ID)
+                3       Group (Group ID)
                 ...
                 5       Last Modified Time (Unix)
                 ...
@@ -98,28 +101,26 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                 puppet.just_call_my_name(
                     size=int(mpi_line_info[1]),
                     owner=mpi_line_info[2],
-                    mtime=int(mpi_line_info[5])
+                    mtime=int(mpi_line_info[5]),
+                    group_id=int(mpi_line_info[3])
                 )
 
     ldap_conn = utils.ldap.getLDAPConnection()
-    group_info = utils.ldap.get_humgen_ldap_info()
+    _, group_info = utils.ldap.get_humgen_ldap_info(ldap_conn)
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 
-    return master_of_puppets
+    return volume, master_of_puppets
 
 
 def main(volumes: T.List[int] = VOLUMES) -> None:
-    vault_reports: T.Dict[int, T.Dict[str, VaultPuppet]] = {}
-    # TODO: Multiprocessing
-    for volume in volumes:
-        # Find path to pass
-        path = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
-        vault_reports[volume] = processVault(path)
+    with multiprocessing.Pool(processes=len(volumes)) as pool:
+        vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.map(
+            processVault, volumes)
 
-        # Write to MySQL database
-        db_conn = db.common.getSQLConnection(config)
-        db.puppeteer.write_to_db(db_conn, vault_reports)
+    # Write to MySQL database
+    db_conn = db.common.getSQLConnection(config)
+    db.puppeteer.write_to_db(db_conn, vault_reports)
 
 
 if __name__ == "__main__":

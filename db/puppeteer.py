@@ -79,7 +79,7 @@ def write_to_db(conn, vault_reports: T.Dict[int, T.Dict[str, VaultPuppet]]) -> N
                 vault._size,
                 vault.owner,
                 vault._mtime,
-                volumes[volume]
+                volumes[f"scratch{volume}"]
             ))
 
     conn.commit()
