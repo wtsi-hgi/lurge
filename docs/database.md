@@ -89,7 +89,7 @@ Filled out to:
 | 1               | Keep        |
 | 2               | Archive     |
 
-### vault
+### `vault`
 
 | Field           | Type | Constraints                        |
 | :---------------| :----| :----------------------------------|
