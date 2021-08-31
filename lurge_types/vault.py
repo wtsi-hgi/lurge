@@ -6,14 +6,16 @@ import utils.ldap
 
 
 class VaultPuppet:
-    def __init__(self, full_path: str, state: str, inode: int):
+    def __init__(self, full_path: str, state: str, inode: int, group_id: int):
         self.full_path: str = full_path
         self.state: str = state
         self._inode: int = inode
+        self._group_id: int = group_id
 
         self._size: T.Optional[int] = None
         self._owner_id: T.Optional[int] = None
         self.owner: T.Optional[str] = None
+        self.group: T.Optional[str] = None
         self._mtime: T.Optional[datetime.date] = None
 
     def just_call_my_name(self, size: int, owner: str, mtime: int):
@@ -21,8 +23,9 @@ class VaultPuppet:
         self._owner_id = owner
         self._mtime = datetime.datetime.fromtimestamp(mtime).date()
 
-    def pull_your_strings(self, ldap_conn):
+    def pull_your_strings(self, ldap_conn, groups):
         self.owner = utils.ldap.get_username(ldap_conn, self._owner_id)
+        self.group = groups[1][self._group_id]
         self.state = self.state.capitalize()
 
     @property
@@ -39,11 +42,11 @@ class VaultPuppet:
     def __dict__(self) -> T.Dict[str, T.Any]:
         return {
             "full_path": self.full_path,
-            "inode": self._inode,
             "size": self.size,
             "state": self.state,
             "owner": self.owner,
-            "mtime": self.mtime.strftime("%Y%m%d")
+            "mtime": self.mtime,
+            "group": self.group
         }
 
     def __repr__(self) -> str:

@@ -102,8 +102,9 @@ def processVault(report_path: str) -> T.Dict[str, VaultPuppet]:
                 )
 
     ldap_conn = utils.ldap.getLDAPConnection()
+    group_info = utils.ldap.get_humgen_ldap_info()
     for puppet in master_of_puppets.values():
-        puppet.pull_your_strings(ldap_conn)
+        puppet.pull_your_strings(ldap_conn, group_info)
 
     return master_of_puppets
 
