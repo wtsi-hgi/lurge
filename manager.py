@@ -5,15 +5,7 @@ import sys
 
 import typing as T
 
-from directory_config import MPISTAT_DIR, REPORT_DIR, VOLUMES
-
-
-def all_exists(mpi_date: str) -> bool:
-    # For mpi_date, does a .dat.gz exist for every volume
-    for volume in VOLUMES:
-        if not os.path.isfile(f"{MPISTAT_DIR}{mpi_date}_{volume}.dat.gz"):
-            return False
-    return True
+from directory_config import REPORT_DIR
 
 
 def main(modes: T.Set[str]) -> None:
@@ -29,10 +21,12 @@ def main(modes: T.Set[str]) -> None:
         report.main()
 
     if "inspector" in modes:
+        # Run the inspector, defaulting to adding to SQL DB
         import project_inspector
         project_inspector.main(tosql=True)
 
     if "puppeteer" in modes:
+        # Run puppeteer - defaults to all volumes
         import puppeteer
         puppeteer.main()
 
