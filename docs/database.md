@@ -75,3 +75,30 @@ Filled out to:
 | directory_id | int   | FK `directory.directory_id` |
 | filetype_id  | int   | FK `filetype.filetype_id`   |
 | size         | float |                             |
+
+### `vault_actions`
+
+| Field           | Type | Constraints       |
+| :---------------| :----| :-----------------|
+| vault_action_id | int  | PK auto_increment |
+| action_name     | text |                   |
+
+Filled out to:
+| vault_action_id | action_name |
+| :---------------| :-----------|
+| 1               | Keep        |
+| 2               | Archive     |
+
+### vault
+
+| Field           | Type | Constraints                        |
+| :---------------| :----| :----------------------------------|
+| record_id       | int  | PK auto_increment                  |
+| record_date     | date |                                    |
+| filepath        | text |                                    |
+| group_id        | int  | FK `group.group_id`                |
+| vault_action_id | int  | FK `vault_actions.vault_action_id` |
+| size            | int  |                                    |
+| file_owner      | text |                                    |
+| last_modified   | date |                                    |
+| volume_id       | int  | FK `volume.volume_id`              |

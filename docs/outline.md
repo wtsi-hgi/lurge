@@ -61,6 +61,28 @@
         - Finally, we can remove any old data - this is data tagged with `.hgi.old`
     - if we're not going to write it to the database, we're going to write it to `stdout` (`utils/table.py`)
 
+### `puppeteer.py`
+
+- if not passed volumes to use, uses all volumes
+- starts multiprocessing processes for how many mpistats it has to read over
+    - finds the most recent mpistat for each volume (`utils/finder.py`)
+    - iterates over mpistat file for first time (finding vaults)
+        - if it finds the deepest level in a vault (contains `.vault` and `XXX-YYY`), it gets the relative path of the file from the `.vault`
+        - using the relative path, and the path of the `.vault`, it can produce the full path
+        - it can also get the inode out from the vault path
+        - it creats a `VaultPuppet` with the information it has at the moment (`lurge_types/vault.py`)
+    - iterates over mpistat file for the second time (finding files affected by vaults)
+        - if the inode of the file was used in a vault, fill out the `VaultPuppet` with more information, this time from the actual file itself
+    - creates a LDAP connection, and asks it for the HumGen groups (`utils/ldap.py`)
+    - lets the VaultPuppet tidy itself up, and fill out extra details, such as using LDAP (`lurge_types/vault.py`)
+- creates a SQL connection to the database
+- writes all its info to the database (`db/puppeteer.py`)
+    - gets groups, volumes and actions (Keep, Archive) from the database for their foreign keys
+    - iterates over all volumes and VaultPuppets
+        - if its not an action we care about, skip it
+        - if the group or volume doesn't exist in the database - create it
+        - adds the VaultPuppet as a record in the `vault` table
+
 ### `group_splitter_cron.sh`
 * bsub: `group_splitter_manager.sh`
   * `group_splitter.py`
