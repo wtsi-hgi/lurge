@@ -12,6 +12,16 @@ MAX_DAYS_AGO = 10
 # temporary sqlite database location
 DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
 
+# directories with group directories to scan for .imirrored
+GROUP_DIRECTORIES = {
+    'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
+    'scratch115': ["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
+    'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
+                   "/lustre/scratch118/humgen/hgi/projects/"],
+    'scratch119': ["/lustre/scratch119/humgen/teams",
+                   "/lustre/scratch119/humgen/projects/"],
+    "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
+}
 
 # Inspector Config
 # redirects to actual storage locations

@@ -18,7 +18,7 @@ import utils.tsv
 
 import report_config as config
 
-from directory_config import DATABASE_NAME, MPISTAT_DIR, REPORT_DIR, VOLUMES
+from directory_config import DATABASE_NAME, MPISTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:
@@ -67,16 +67,6 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     starttime = datetime.datetime.now()
     lines_processed = 0
     print("Opening {} for reading...".format(mpi_file))
-    # directories with group directories to scan for .imirrored
-    group_directories: T.Dict[str, T.List[str]] = {
-        'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
-        'scratch115': ["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
-        'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
-                       "/lustre/scratch118/humgen/hgi/projects/"],
-        'scratch119': ["/lustre/scratch119/humgen/teams",
-                       "/lustre/scratch119/humgen/projects/"],
-        "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
-    }
 
     with gzip.open(mpi_file, 'rt') as mpi_text:
         # each line in the mpistat file has the following whitespace separated
@@ -176,7 +166,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         # any larger than that and it's very likely to still be in use
         if (volumeSize < 100*1024**2):
             try:
-                archivedDirs = scanDirectory(group_directories[volume][0] +
+                archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
                                              groupName)
             except FileNotFoundError:
                 pass
@@ -184,7 +174,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
             # only test the next directory if .imirrored wasn't already found
             if archivedDirs is None:
                 try:
-                    archivedDirs = scanDirectory(group_directories[volume][1] +
+                    archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
                                                  groupName)
                 except FileNotFoundError:
                     pass

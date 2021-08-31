@@ -2,29 +2,24 @@
 
 ## Scripts
 
-#### `cron.sh`
+### `cron.sh`
 
-- bsub: `manager.py`: `both` flag - (`both` flag will run the `report.py` and then `inspector.py`)
+- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `inspector` and `puppeteer`)
 
-#### `manager.py`
+### `manager.py`
 
-- tries to determine latest full set of mpistat
-- only looks over the past `MAX_DAYS_AGO`
-- won't proceed if report-DATE.tsv exists
-- if running the reporter
-    - symlinks mpistat locally for convenienve
-- runs `reporter.py` or `inspector.py` or both as required
+- runs `reporter.py`, `inspector.py` or `puppeteer.py` as required
 
-#### `report.py`
+### `report.py`
 
 - creates temporary sqlite database on disk
 - estableses connection to MySQL (`db/common.py`)
-- checks mysql database for date passed to `report` (`db/report.py`) - aborts if found
+- finds the latest mpistat for each volume, and checks if its already in the database. we only care if its new data (`utils/finder.py` and `db/report.py`)
 - estableshes connection to Sanger LDAP (`utils/ldap.py`)
 - creates sqlite table of humgen ldap groups, with gid, name and PI (`utils/ldap.py`)
 - creates sqlite tables for each possible volume
 - runs the following for each mpistat input (multiproc pool)
-    - creates a new connection to the sqlite db (stops any issues re concurrent editing)
+    - creates a new connection to the sqlite db (stops any issues re. concurrent editing)
     - reads mpistat filename to determine volume
     - deserialises group table into memory
     - iterates over the mpistat file, accumalating group data into memory
@@ -38,7 +33,7 @@
     - writes output to `.tsv` file (`utils/tsv.py`)
     - removes sqlite file
 
-#### `project_inspector.py`
+### `project_inspector.py`
 
 - get humgen groups from ldap (`utils.ldap.py`)
 - if a path isn't specified, spin up multiproc Pool workers to collect data on all the humgen directories we care about
