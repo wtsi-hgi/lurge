@@ -42,16 +42,12 @@ class VaultPuppet:
     def mtime(self) -> str:
         return self._mtime.strftime("%Y-%m-%d")
 
-    @property
-    def __dict__(self) -> T.Dict[str, T.Any]:
-        return {
+    def __repr__(self) -> str:
+        return str({
             "full_path": self.full_path,
             "size": self.size,
             "state": self.state,
             "owner": self.owner,
             "mtime": self.mtime,
             "group": self.group
-        }
-
-    def __repr__(self) -> str:
-        return str(self.__dict__)
+        })

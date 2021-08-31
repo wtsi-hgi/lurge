@@ -4,7 +4,7 @@ import typing as T
 from lurge_types.vault import VaultPuppet
 
 
-def write_to_db(conn, vault_reports: T.Dict[int, T.Dict[str, VaultPuppet]]) -> None:
+def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]]) -> None:
     print("Writing results to MySQL database")
 
     cursor = conn.cursor()
@@ -41,7 +41,8 @@ def write_to_db(conn, vault_reports: T.Dict[int, T.Dict[str, VaultPuppet]]) -> N
         actions[action_name] = action_id
 
     # Now, we're going to go through all the VaultReports and add each as a DB record
-    for volume, reports in vault_reports.items():
+    for volume, reports in vault_reports:
+        print(f"Databasing {volume}")
         for vault in reports.values():
             # Add foreign keys if they don't exist
             # We're NOT adding more Action items

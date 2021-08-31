@@ -110,6 +110,7 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 
+    print(f"Done reading mpistat twice for {volume}", flush=True)
     return volume, master_of_puppets
 
 
