@@ -122,6 +122,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     # Finding most recent mpistat files for each volume
     # We only care if the most recent mpistat file isn't already in the database
     volumes_to_check: T.List[int] = []
+    mpistat_dates: T.Dict[int, datetime.date] = {}
+
     for volume in volumes:
         latest_mpi = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
         mpi_date_str = latest_mpi.split("/")[-1].split("_")[0]
@@ -130,13 +132,14 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
         if not db.puppeteer.check_report_date(db_conn, mpi_date, volume):
             volumes_to_check.append(volume)
+            mpistat_dates[volume] = mpi_date
 
     with multiprocessing.Pool(processes=len(volumes)) as pool:
         vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.map(
             processVault, volumes_to_check)
 
     # Write to MySQL database
-    db.puppeteer.write_to_db(db_conn, vault_reports)
+    db.puppeteer.write_to_db(db_conn, vault_reports, mpistat_dates)
 
 
 if __name__ == "__main__":

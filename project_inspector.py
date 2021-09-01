@@ -227,7 +227,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
             )
 
             for mapping in mappings:
-                volume = list(mapping.values()[0].scratch_disk)
+                volume = list(mapping.values())[0].scratch_disk
                 directories_info[volume] = mapping
 
     else:

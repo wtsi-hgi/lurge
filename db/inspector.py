@@ -150,7 +150,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             ))
 
             # Get the new directory_id back, so we can add file types
-            (new_id,) = cursor.lastrowid
+            new_id = cursor.lastrowid
 
             # Add the file sizes
             # Although these are in the DB with foreign keys, we'll hardcode them here

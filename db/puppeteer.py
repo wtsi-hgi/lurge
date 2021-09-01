@@ -27,7 +27,7 @@ def check_report_date(db_conn: mysql.connector.MySQLConnection, date: datetime.d
     return False
 
 
-def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]]) -> None:
+def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], mpistat_dates: T.Dict[int, datetime.date]) -> None:
     print("Writing results to MySQL database")
 
     cursor = conn.cursor()
@@ -80,7 +80,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                 except KeyError:
                     cursor.execute(
                         "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (vault.group, 1))
-                    (new_id,) = cursor.lastrowid
+                    new_id = cursor.lastrowid
                     groups[vault.group] = new_id
             else:
                 db_group = None
@@ -88,7 +88,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
             if f"scratch{volume}" not in volumes:
                 cursor.execute(
                     "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
-                (new_id,) = cursor.lastrowid
+                new_id = cursor.lastrowid
                 volumes[f"scratch{volume}"] = new_id
 
             # Add new data
@@ -96,7 +96,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
             file_owner, last_modified, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
 
             cursor.execute(query, (
-                datetime.datetime.now().date(),
+                mpistat_dates[volume],
                 vault.full_path,
                 db_group,
                 actions[vault.state],

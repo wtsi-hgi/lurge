@@ -66,6 +66,7 @@
 - if not passed volumes to use, uses all volumes
 - starts multiprocessing processes for how many mpistats it has to read over
     - finds the most recent mpistat for each volume (`utils/finder.py`)
+    - checks that it hasn't already got that data in the DB, otherwise it'll skip that particular mpistat
     - iterates over mpistat file for first time (finding vaults)
         - if it finds the deepest level in a vault (contains `.vault` and `XXX-YYY`), it gets the relative path of the file from the `.vault`
         - using the relative path, and the path of the `.vault`, it can produce the full path
@@ -74,7 +75,7 @@
     - iterates over mpistat file for the second time (finding files affected by vaults)
         - if the inode of the file was used in a vault, fill out the `VaultPuppet` with more information, this time from the actual file itself
     - creates a LDAP connection, and asks it for the HumGen groups (`utils/ldap.py`)
-    - lets the VaultPuppet tidy itself up, and fill out extra details, such as using LDAP (`lurge_types/vault.py`)
+    - lets the VaultPuppet tidy itself up, and fill out extra details, such as using LDAP (`lurge_types/vault.py`) and replacing the full filepath with a human readable one
 - creates a SQL connection to the database
 - writes all its info to the database (`db/puppeteer.py`)
     - gets groups, volumes and actions (Keep, Archive) from the database for their foreign keys
