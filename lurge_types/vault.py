@@ -37,8 +37,8 @@ class VaultPuppet:
             self.group = None
 
         for human_path, data_path in PROJECT_DIRS.items():
-            if re.match(data_path, self.full_path):
-                _suffix = re.sub(data_path, "", self.full_path)
+            if re.match(data_path, self.full_path.strip("/")):
+                _suffix = re.sub(data_path, "", self.full_path.strip("/"))
                 self.full_path = f"/{human_path}{_suffix}"
                 break
 

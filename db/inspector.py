@@ -123,8 +123,8 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                     (new_group_id,) = cursor.fetchone()
                     groups[_unix_group] = new_group_id
                     db_group = new_group_id
-                else:
-                    db_group = None
+            else:
+                db_group = None
 
             if _volume not in volumes:
                 cursor.execute(
