@@ -8,7 +8,7 @@ import mysql.connector
 
 def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date, volume: int):
     """
-    Checks the dates in the MySQL database, and stops the program if date 'date'
+    Checks the dates in the MySQL database to see if date 'date'
     is already recorded.
 
     :param sql_db: MySQL connection to check for reports

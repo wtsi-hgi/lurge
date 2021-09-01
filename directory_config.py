@@ -25,6 +25,7 @@ GROUP_DIRECTORIES = {
 
 # Inspector Config
 # redirects to actual storage locations
+# also used in puppeteer config
 PROJECT_DIRS = {
     'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
     'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
@@ -37,5 +38,6 @@ ALL_PROJECTS = {
     '114': ["lustre/scratch114/projects", "lustre/scratch114/teams"],
     '115': ["lustre/scratch115/realdata/mdt[0-9]/projects", "lustre/scratch115/realdata/mdt[0-9]/teams"],
     '118': ["lustre/scratch118/humgen/hgi/projects", "lustre/scratch118/humgen/old-team-data"],
-    '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"]
+    '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"],
+    "123": ["lustre/scratch123/hgi/projects", "lustre/scratch123/hgi/teams"]
 }

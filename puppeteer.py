@@ -1,5 +1,6 @@
-import gzip
 import base64
+import datetime
+import gzip
 import multiprocessing
 import sys
 import typing as T
@@ -115,12 +116,26 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
 
 
 def main(volumes: T.List[int] = VOLUMES) -> None:
+    # Creating SQL Connection
+    db_conn = db.common.getSQLConnection(config)
+
+    # Finding most recent mpistat files for each volume
+    # We only care if the most recent mpistat file isn't already in the database
+    volumes_to_check: T.List[int] = []
+    for volume in volumes:
+        latest_mpi = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
+        mpi_date_str = latest_mpi.split("/")[-1].split("_")[0]
+        mpi_date = datetime.date(int(mpi_date_str[:4]), int(
+            mpi_date_str[4:6]), int(mpi_date_str[6:8]))
+
+        if not db.puppeteer.check_report_date(db_conn, mpi_date, volume):
+            volumes_to_check.append(volume)
+
     with multiprocessing.Pool(processes=len(volumes)) as pool:
         vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.map(
-            processVault, volumes)
+            processVault, volumes_to_check)
 
     # Write to MySQL database
-    db_conn = db.common.getSQLConnection(config)
     db.puppeteer.write_to_db(db_conn, vault_reports)
 
 

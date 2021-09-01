@@ -1,8 +1,11 @@
 import datetime
+import re
 import typing as T
 
 import utils
 import utils.ldap
+
+from directory_config import PROJECT_DIRS
 
 
 class VaultPuppet:
@@ -27,10 +30,17 @@ class VaultPuppet:
     def pull_your_strings(self, ldap_conn, groups):
         self.owner = utils.ldap.get_username(ldap_conn, self._owner_id)
         self.state = self.state.capitalize()
+
         try:
             self.group = groups[self._group_id] if self._group_id is not None else None
         except KeyError:
             self.group = None
+
+        for human_path, data_path in PROJECT_DIRS.items():
+            if re.match(data_path, self.full_path):
+                _suffix = re.sub(data_path, "", self.full_path)
+                self.full_path = f"/{human_path}{_suffix}"
+                break
 
     @property
     def size(self) -> str:
