@@ -1,11 +1,11 @@
 # Global Config
-MPISTAT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
+WRSTAT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/wrstat/data/"
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 VOLUMES = [114, 115, 118, 119, 123]
 
 
 # Manager Config
-# max number of days ago to search for mpistat
+# max number of days ago to search for wrstat
 MAX_DAYS_AGO = 10
 
 # Reporter Config

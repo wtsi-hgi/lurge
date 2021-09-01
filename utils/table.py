@@ -8,7 +8,7 @@ from lurge_types.directory_report import DirectoryReport
 
 def print_table(directory_info: T.Dict[str, DirectoryReport], volume: str, mode: str, report_dir: str) -> None:
     report_path = finder.findReport(volume, report_dir)
-    mpistat_date = int(os.stat(report_path).st_mtime)
+    wrstat_date = int(os.stat(report_path).st_mtime)
 
     paths = list(directory_info.keys())
     paths.sort()
@@ -25,7 +25,7 @@ def print_table(directory_info: T.Dict[str, DirectoryReport], volume: str, mode:
 
         _files = directory_info[key].num_files
         # 86400 seconds/day
-        _mtime = round((mpistat_date - directory_info[key].mtime)/86400, 1)
+        _mtime = round((wrstat_date - directory_info[key].mtime)/86400, 1)
 
         _size = humanise(directory_info[key].size)
         _bam = humanise(directory_info[key].bam)

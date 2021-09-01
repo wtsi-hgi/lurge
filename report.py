@@ -18,12 +18,12 @@ import utils.tsv
 
 import report_config as config
 
-from directory_config import DATABASE_NAME, MPISTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES
+from directory_config import DATABASE_NAME, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:
     """
-    processMpistat helper function. Scans 'directory' for .imirrored, and returns
+    process_wrstat helper function. Scans 'directory' for .imirrored, and returns
     the directory if it was found and None otherwise.
 
     :param directory: Directory to scan
@@ -36,12 +36,12 @@ def scanDirectory(directory: str) -> T.Optional[str]:
     return None
 
 
-def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
+def process_wrstat(wr_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     """
-    Processes a single mpistat output file and writes a table of results to
+    Processes a single wrstat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
 
-    :param mpi_file: File name of mpistat output file to process
+    :param wr_file: File name of wrstat output file to process
     """
 
     tmp_db = sqlite3.connect(DATABASE_NAME)
@@ -50,7 +50,7 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
     result = db_cursor.fetchall()
 
-    volume = f"scratch{mpi_file.split('/')[-1].split('.')[0].split('_')[1]}"
+    volume = f"scratch{wr_file.split('/')[-1].split('.')[0].split('_')[1]}"
 
     groups: T.Dict[str, T.Dict[str, T.Any]] = {}
     for row in result:
@@ -63,18 +63,18 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         groups[str(gid)] = {'groupName': groupName, 'PIname': PIname, 'volumeSize': 0,
                             'lastModified': 0, 'volume': volume, 'isHumgen': True}
 
-    # lazily reads the mpistat file without unzipping the whole thing first
+    # lazily reads the wrstat file without unzipping the whole thing first
     starttime = datetime.datetime.now()
     lines_processed = 0
-    print("Opening {} for reading...".format(mpi_file))
+    print("Opening {} for reading...".format(wr_file))
 
-    with gzip.open(mpi_file, 'rt') as mpi_text:
-        # each line in the mpistat file has the following whitespace separated
+    with gzip.open(wr_file, 'rt') as wr_text:
+        # each line in the wrstat file has the following whitespace separated
         # fields:
         # base64 encoded path, file size, owner uid, owner gid, last access time,
         # last modification time, last status change time, object type (file,
         # directory or link), inode number, number of links, device id
-        for line in mpi_text:
+        for line in wr_text:
 
             # print out progress report every ~30 seconds
             if (datetime.datetime.now() - starttime).seconds > 30:
@@ -117,15 +117,15 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
 
             lines_processed += 1
 
-    # gets the Unix timestamp of when the mpistat file was created
+    # gets the Unix timestamp of when the wrstat file was created
     # int() truncates away the sub-second measurements
-    mpistat_date_unix = int(os.stat(mpi_file).st_mtime)
+    wrstat_date_unix = int(os.stat(wr_file).st_mtime)
     group_data: T.List[T.Tuple[T.Any, ...]] = []
     for gid in groups:
         gidNumber = gid
         groupName: str = groups[gid]['groupName']
 
-        # updates the group names for groups discovered during mpistat crawl
+        # updates the group names for groups discovered during wrstat crawl
         if (groupName == None):
             # connection times out too quickly to be declared elsewhere
             ldap_con = utils.ldap.getLDAPConnection()
@@ -145,10 +145,10 @@ def processMpistat(mpi_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         volumeSize = groups[gid]['volumeSize']
         lastModified_unix = groups[gid]['lastModified']
         isHumgen = groups[gid]['isHumgen']
-        # mpistat_date_unix - lastModified_unix is the seconds since last
-        # modification relative to when the mpistat file was produced
+        # wrstat_date_unix - lastModified_unix is the seconds since last
+        # modification relative to when the wrstat file was produced
         # divided by 86400 (seconds in a day) to find day difference
-        lastModified = round((mpistat_date_unix - lastModified_unix)/86400, 1)
+        lastModified = round((wrstat_date_unix - lastModified_unix)/86400, 1)
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
@@ -212,20 +212,20 @@ def main() -> None:
     print("Establishing MySQL connection...")
     sql_db = db.common.getSQLConnection(config)
 
-    # Finding most recent mpistat files for each volume
-    # We only care if the most recent mpistat file isn't already in the database
-    mpistat_files: T.List[str] = []
-    mpistat_dates: T.Dict[int, datetime.date] = {}
+    # Finding most recent wrstat files for each volume
+    # We only care if the most recent wrstat file isn't already in the database
+    wrstat_files: T.List[str] = []
+    wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in VOLUMES:
-        latest_mpi = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
-        mpi_date_str = latest_mpi.split("/")[-1].split("_")[0]
-        mpi_date = datetime.date(int(mpi_date_str[:4]), int(
-            mpi_date_str[4:6]), int(mpi_date_str[6:8]))
+        latest_wr = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR)
+        wr_date_str = latest_wr.split("/")[-1].split("_")[0]
+        wr_date = datetime.date(int(wr_date_str[:4]), int(
+            wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.report.checkReportDate(sql_db, mpi_date, volume):
-            mpistat_files.append(latest_mpi)
-            mpistat_dates[volume] = mpi_date
+        if not db.report.checkReportDate(sql_db, wr_date, volume):
+            wrstat_files.append(latest_wr)
+            wrstat_dates[volume] = wr_date
 
     print("Establishing LDAP connection...")
     ldap_con = utils.ldap.getLDAPConnection()
@@ -237,18 +237,18 @@ def main() -> None:
     generate_tables(tmp_db)
 
     # creates a process pool which will concurrently execute 5 processes
-    # to read each mpistat file
+    # to read each wrstat file
     pool = multiprocessing.Pool(processes=5)
 
-    print("Starting mpistat processors...", flush=True)
+    print("Starting wrstat processors...", flush=True)
     # sorts file list alphabetically, so that the volumes are in the same order
     # regardless of how the script arguments are given. This is useful for
     # having an ordered multiprocess output later.
-    mpistat_files.sort()
+    wrstat_files.sort()
 
-    # distribute input files to processes running instances of processMpistat()
+    # distribute input files to processes running instances of process_wrstat()
     try:
-        mpi_data = pool.map(processMpistat, mpistat_files)
+        wr_data = pool.map(process_wrstat, wrstat_files)
         pool.close()
         pool.join()
     except Exception as e:
@@ -257,8 +257,8 @@ def main() -> None:
         os.remove(DATABASE_NAME)
         raise e
 
-    tables = [x[0] for x in mpi_data]
-    group_data = [x for y in mpi_data for x in y[1]]
+    tables = [x[0] for x in wr_data]
+    group_data = [x for y in wr_data for x in y[1]]
 
     db_cursor = tmp_db.cursor()
 
@@ -280,7 +280,7 @@ def main() -> None:
     date = datetime.date.today().strftime("%Y-%m-%d")
 
     print("Transferring report data to MySQL database...")
-    db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, mpistat_dates)
+    db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, wrstat_dates)
 
     print("Writing report data to .tsv file...")
     utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR)

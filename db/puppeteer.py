@@ -27,7 +27,7 @@ def check_report_date(db_conn: mysql.connector.MySQLConnection, date: datetime.d
     return False
 
 
-def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], mpistat_dates: T.Dict[int, datetime.date]) -> None:
+def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], wrstat_dates: T.Dict[int, datetime.date]) -> None:
     print("Writing results to MySQL database")
 
     cursor = conn.cursor()
@@ -96,7 +96,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
             file_owner, last_modified, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
 
             cursor.execute(query, (
-                mpistat_dates[volume],
+                wrstat_dates[volume],
                 vault.full_path,
                 db_group,
                 actions[vault.state],

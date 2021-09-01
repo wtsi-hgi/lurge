@@ -13,7 +13,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
     print("Writing results to MySQL database")
 
     report_path = finder.findReport(scratch_disk, report_dir)
-    mpistat_date = int(os.stat(report_path).st_mtime)
+    wrstat_date = int(os.stat(report_path).st_mtime)
 
     """
     Plan
@@ -85,7 +85,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                 _path = None
 
             _files = directory_info[key].num_files
-            _mtime = round((mpistat_date - directory_info[key].mtime)/86400, 1)
+            _mtime = round((wrstat_date - directory_info[key].mtime)/86400, 1)
 
             _size = round(directory_info[key].size / SCALING_FACTOR, 2)
             _bam = round(directory_info[key].bam / SCALING_FACTOR, 2)

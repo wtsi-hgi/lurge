@@ -1,22 +1,27 @@
 import datetime
+import glob
 import os
 import typing as T
 
 from directory_config import MAX_DAYS_AGO
 
-
 def findReport(scratch_disk: str, report_dir: str):
+    def _mtime(f):
+        return os.stat(f).st_mtime
+
     days_ago = 0
     volume = scratch_disk[-3:]
     while days_ago < MAX_DAYS_AGO:
         date = datetime.date.today() - datetime.timedelta(days=days_ago)
-        proposed_file = f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.dat.gz"
-        if not os.path.isfile(proposed_file):
+        matching_files = glob.glob(f"{report_dir}{date.strftime('%Y%m%d')}_scratch{volume}.*.*.stats.gz")
+        if len(matching_files) == 0:
             days_ago += 1
         else:
+            # If there's multiple files, we'll grab the most recently edited
+            matching_files.sort(reverse = True, key=_mtime)
             print(
-                f"{scratch_disk}: using mpistat output for {date.strftime('%Y%m%d')}")
-            return proposed_file
+                f"{scratch_disk}: using wrstat output for {date.strftime('%Y%m%d')}")
+            return matching_files[0]
 
 
 def getParents(directory: str) -> T.List[str]:

@@ -13,20 +13,20 @@ import utils.ldap
 import report_config as config
 
 from lurge_types.vault import VaultPuppet
-from directory_config import VOLUMES, MPISTAT_DIR
+from directory_config import VOLUMES, WRSTAT_DIR
 
 # If Vault has Enter Sandman references in, I'm putting Master of Puppets references here,
 # because its the only other Metallica song I know
 
 
 def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
-    report_path = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
+    report_path = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR)
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
 
     # 1st Run to Get Vaults
-    with gzip.open(report_path, "rt") as mpistat:
+    with gzip.open(report_path, "rt") as wrstat:
         lines_read: int = 0
-        for line in mpistat:
+        for line in wrstat:
 
             # Logging
             lines_read += 1
@@ -35,11 +35,11 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
                     f"Read {lines_read} lines from {report_path} - Run 1", flush=True)
 
             # Decode the Path, Split it and See If We Care
-            mpi_line_info = line.split()
+            wr_line_info = line.split()
 
             try:
                 filepath = base64.b64decode(
-                    mpi_line_info[0]).decode("UTF-8", "replace")
+                    wr_line_info[0]).decode("UTF-8", "replace")
             except:
                 continue
 
@@ -72,9 +72,9 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
                     inode=inode)
 
     # 2nd. Run to Get File Information
-    with gzip.open(report_path, "rt") as mpistat:
+    with gzip.open(report_path, "rt") as wrstat:
         lines_read = 0
-        for line in mpistat:
+        for line in wrstat:
             # Logging
             lines_read += 1
             if lines_read % 5000000 == 0:
@@ -82,11 +82,11 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
                     f"Read {lines_read} lines from {report_path} - Run 2", flush=True)
 
             # Decode the Path, Split it and See If We Care
-            mpi_line_info = line.split()
+            wr_line_info = line.split()
 
-            if int(mpi_line_info[8]) in master_of_puppets:
+            if int(wr_line_info[8]) in master_of_puppets:
                 """
-                mpistat lines
+                wrstat lines
                 Index   Item
                 0       Filepath (base 64 encoded)
                 1       Size (bytes)
@@ -98,12 +98,12 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
                 8       Inode ID
                 ...
                 """
-                puppet = master_of_puppets[int(mpi_line_info[8])]
+                puppet = master_of_puppets[int(wr_line_info[8])]
                 puppet.just_call_my_name(
-                    size=int(mpi_line_info[1]),
-                    owner=mpi_line_info[2],
-                    mtime=int(mpi_line_info[5]),
-                    group_id=int(mpi_line_info[3])
+                    size=int(wr_line_info[1]),
+                    owner=wr_line_info[2],
+                    mtime=int(wr_line_info[5]),
+                    group_id=int(wr_line_info[3])
                 )
 
     ldap_conn = utils.ldap.getLDAPConnection()
@@ -111,7 +111,7 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 
-    print(f"Done reading mpistat twice for {volume}", flush=True)
+    print(f"Done reading wrstat twice for {volume}", flush=True)
     return volume, master_of_puppets
 
 
@@ -119,27 +119,27 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     # Creating SQL Connection
     db_conn = db.common.getSQLConnection(config)
 
-    # Finding most recent mpistat files for each volume
-    # We only care if the most recent mpistat file isn't already in the database
+    # Finding most recent wrstat files for each volume
+    # We only care if the most recent wrstat file isn't already in the database
     volumes_to_check: T.List[int] = []
-    mpistat_dates: T.Dict[int, datetime.date] = {}
+    wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in volumes:
-        latest_mpi = utils.finder.findReport(f"scratch{volume}", MPISTAT_DIR)
-        mpi_date_str = latest_mpi.split("/")[-1].split("_")[0]
-        mpi_date = datetime.date(int(mpi_date_str[:4]), int(
-            mpi_date_str[4:6]), int(mpi_date_str[6:8]))
+        latest_wr = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR)
+        wr_date_str = latest_wr.split("/")[-1].split("_")[0]
+        wr_date = datetime.date(int(wr_date_str[:4]), int(
+            wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.puppeteer.check_report_date(db_conn, mpi_date, volume):
+        if not db.puppeteer.check_report_date(db_conn, wr_date, volume):
             volumes_to_check.append(volume)
-            mpistat_dates[volume] = mpi_date
+            wrstat_dates[volume] = wr_date
 
     with multiprocessing.Pool(processes=len(volumes)) as pool:
         vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.map(
             processVault, volumes_to_check)
 
     # Write to MySQL database
-    db.puppeteer.write_to_db(db_conn, vault_reports, mpistat_dates)
+    db.puppeteer.write_to_db(db_conn, vault_reports, wrstat_dates)
 
 
 if __name__ == "__main__":

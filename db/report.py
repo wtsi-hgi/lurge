@@ -27,7 +27,7 @@ def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date
     return False
 
 
-def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], mpistat_dates: T.Dict[int, datetime.date]):
+def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], wrstat_dates: T.Dict[int, datetime.date]):
     """
     Reads the contents of tables in tmp_db and writes them to a MySQL database.
 
@@ -114,7 +114,7 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
             sql_cursor.execute(query, (
                 size,
                 quota,
-                mpistat_dates[int(volume[-3:])],
+                wrstat_dates[int(volume[-3:])],
                 archived is not None,
                 last_mod,
                 pi,

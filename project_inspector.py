@@ -17,7 +17,7 @@ from lurge_types.directory_report import DirectoryReport
 
 import report_config as config
 
-from directory_config import MPISTAT_DIR, PROJECT_DIRS, ALL_PROJECTS
+from directory_config import WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS
 
 
 # Regexs for File Types
@@ -37,27 +37,27 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
     humgen_pis, humgen_groups = names
 
-    # Format paths and find the mpistat report
+    # Format paths and find the wrstat report
     segmented_path = paths[0].split("/")
     scratch_disk = "/".join(segmented_path[0:2])
     root_parent = "/".join(segmented_path[0:-1])
-    report_path = utils.finder.findReport(scratch_disk, MPISTAT_DIR)
+    report_path = utils.finder.findReport(scratch_disk, WRSTAT_DIR)
 
     directory_reports: T.Dict[str, DirectoryReport] = {}
 
-    # Reading over every line in the mpistat report
-    print(f"Reading mpistat output {report_path}")
+    # Reading over every line in the wrstat report
+    print(f"Reading wrstat output {report_path}")
     lines_read = 0
-    with gzip.open(report_path, "rt") as mpistat:
-        for line in mpistat:
+    with gzip.open(report_path, "rt") as wrstat:
+        for line in wrstat:
             lines_read += 1
             if lines_read % 5000000 == 0:
                 print(
-                    f"Read {lines_read} lines from mpistat for {scratch_disk}", flush=True)
+                    f"Read {lines_read} lines from wrstat for {scratch_disk}", flush=True)
             line_info = line.split()
 
             """
-            Line Info (layout from mpistat file)
+            Line Info (layout from wrstat file)
             Index   Item
             0       File Path (base 64 encoded)
             1       Size (bytes)
@@ -214,7 +214,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
     directories_info: T.Dict[str, T.Dict[str, DirectoryReport]] = {}
 
-    # Create a multiprocessing pool to process each mpistat file concurrently
+    # Create a multiprocessing pool to process each wrstat file concurrently
     if path is None:
         with multiprocessing.Pool() as pool:
             mappings = pool.starmap(
@@ -239,10 +239,10 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
         # Write to MySQL database
         db_conn = db.common.getSQLConnection(config)
         db.inspector.load_inspections_into_sql(
-            db_conn, directories_info, volume, MPISTAT_DIR)
+            db_conn, directories_info, volume, WRSTAT_DIR)
     else:
         # Printing to stdout
-        print("Last modified is relative to mpistat, so may be a few days off")
+        print("Last modified is relative to wrstat, so may be a few days off")
         if (mode == "project" and header):
             print("Project\tDirectory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
         elif (mode == "general" and header):
@@ -251,7 +251,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
         for volume in directories_info:
             utils.table.print_table(
-                directories_info[volume], volume, mode, MPISTAT_DIR)
+                directories_info[volume], volume, mode, WRSTAT_DIR)
 
 
 if __name__ == "__main__":

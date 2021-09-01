@@ -14,7 +14,7 @@ Group Splitter takes mpistat output files and splits them by the Unix group of t
 2. Copy `report_config.example.py` to `report_config.py` and enter MySQL database credentials in `report_config.py`
 3. If necessary, edit declarations in `directory_config.py` to point at the correct directories
 4. If necessary, create a Python3 virtual environment and change command in `cron.sh` to point to it 
-5. Run `manager.py {report|inspector|both}`
+5. Run `manager.py {report|inspector|puppeteer}`
 
 See `docs/` for more information
 

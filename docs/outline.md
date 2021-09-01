@@ -14,15 +14,15 @@
 
 - creates temporary sqlite database on disk
 - estableses connection to MySQL (`db/common.py`)
-- finds the latest mpistat for each volume, and checks if its already in the database. we only care if its new data (`utils/finder.py` and `db/report.py`)
+- finds the latest wrstat for each volume, and checks if its already in the database. we only care if its new data (`utils/finder.py` and `db/report.py`)
 - estableshes connection to Sanger LDAP (`utils/ldap.py`)
 - creates sqlite table of humgen ldap groups, with gid, name and PI (`utils/ldap.py`)
 - creates sqlite tables for each possible volume
-- runs the following for each mpistat input (multiproc pool)
+- runs the following for each wrstat input (multiproc pool)
     - creates a new connection to the sqlite db (stops any issues re. concurrent editing)
-    - reads mpistat filename to determine volume
+    - reads wrstat filename to determine volume
     - deserialises group table into memory
-    - iterates over the mpistat file, accumalating group data into memory
+    - iterates over the wrstat file, accumalating group data into memory
     - for each group accumalated:
       - fill in blanks from ldap if neccesary
       - attempt to get quota and consumption by running `lfs quota`
@@ -37,8 +37,8 @@
 
 - get humgen groups from ldap (`utils.ldap.py`)
 - if a path isn't specified, spin up multiproc Pool workers to collect data on all the humgen directories we care about
-    - firstly, finds the most recent mpistat report for the volume
-    - iterates over every line in the mpistat
+    - firstly, finds the most recent wrstat report for the volume
+    - iterates over every line in the wrstat
         - if the path doesn't contain a directory we care about, we skip it
         - if we're in a `users` directory, go one level deeper
         - if we have a directory:
@@ -64,15 +64,15 @@
 ### `puppeteer.py`
 
 - if not passed volumes to use, uses all volumes
-- starts multiprocessing processes for how many mpistats it has to read over
-    - finds the most recent mpistat for each volume (`utils/finder.py`)
-    - checks that it hasn't already got that data in the DB, otherwise it'll skip that particular mpistat
-    - iterates over mpistat file for first time (finding vaults)
+- starts multiprocessing processes for how many wrstats it has to read over
+    - finds the most recent wrstat for each volume (`utils/finder.py`)
+    - checks that it hasn't already got that data in the DB, otherwise it'll skip that particular wrstat
+    - iterates over wrstat file for first time (finding vaults)
         - if it finds the deepest level in a vault (contains `.vault` and `XXX-YYY`), it gets the relative path of the file from the `.vault`
         - using the relative path, and the path of the `.vault`, it can produce the full path
         - it can also get the inode out from the vault path
         - it creats a `VaultPuppet` with the information it has at the moment (`lurge_types/vault.py`)
-    - iterates over mpistat file for the second time (finding files affected by vaults)
+    - iterates over wrstat file for the second time (finding files affected by vaults)
         - if the inode of the file was used in a vault, fill out the `VaultPuppet` with more information, this time from the actual file itself
     - creates a LDAP connection, and asks it for the HumGen groups (`utils/ldap.py`)
     - lets the VaultPuppet tidy itself up, and fill out extra details, such as using LDAP (`lurge_types/vault.py`) and replacing the full filepath with a human readable one
@@ -87,9 +87,9 @@
 ### `group_splitter_cron.sh`
 * bsub: `group_splitter_manager.sh`
   * `group_splitter.py`
-    * Finds latest mpistat file for each volume its interested in
+    * Finds latest wrstat file for each volume its interested in
     * Gets all groups and all humgen groups from ldap
-    * Iterate through each mpistat file:
+    * Iterate through each wrstat file:
       * Decode file path
       * If gid isn't humgen or special (116/vr or tol) then skip
       * Gets group name by gid; if it can't, then skip
@@ -100,5 +100,5 @@
       based on anecdotal timing (this is to estimate how long
       TreeServe takes to start)
   * Dumps passwd and group databases to files
-  * Uploads split mpistat files, passwd and group databases to S3
+  * Uploads split wrstat files, passwd and group databases to S3
 
