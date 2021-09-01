@@ -103,7 +103,7 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
                     size=int(wr_line_info[1]),
                     owner=wr_line_info[2],
                     mtime=int(wr_line_info[5]),
-                    group_id=int(wr_line_info[3])
+                    group_id=wr_line_info[3]
                 )
 
     ldap_conn = utils.ldap.getLDAPConnection()

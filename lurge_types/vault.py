@@ -17,7 +17,7 @@ class VaultPuppet:
         self._size: T.Optional[int] = None
         self._owner_id: T.Optional[int] = None
         self.owner: T.Optional[str] = None
-        self._group_id: T.Optional[int] = None
+        self._group_id: T.Optional[str] = None
         self.group: T.Optional[str] = None
         self._mtime: T.Optional[datetime.date] = None
 
