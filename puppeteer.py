@@ -35,7 +35,7 @@ def processVault(volume: int, logger: logging.Logger) -> T.Dict[str, VaultPuppet
             lines_read += 1
             if lines_read % 5000000 == 0:
                 logger.debug(
-                    f"Read {lines_read} lines from {report_path} - Run 1", flush=True)
+                    f"Read {lines_read} lines from {report_path} - Run 1")
 
             # Decode the Path, Split it and See If We Care
             wr_line_info = line.split()
@@ -82,7 +82,7 @@ def processVault(volume: int, logger: logging.Logger) -> T.Dict[str, VaultPuppet
             lines_read += 1
             if lines_read % 5000000 == 0:
                 logger.debug(
-                    f"Read {lines_read} lines from {report_path} - Run 2", flush=True)
+                    f"Read {lines_read} lines from {report_path} - Run 2")
 
             # Decode the Path, Split it and See If We Care
             wr_line_info = line.split()
@@ -114,12 +114,12 @@ def processVault(volume: int, logger: logging.Logger) -> T.Dict[str, VaultPuppet
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 
-    logger.info(f"Done reading wrstat twice for {volume}", flush=True)
+    logger.info(f"Done reading wrstat twice for {volume}")
     return volume, master_of_puppets
 
 
 def main(volumes: T.List[int] = VOLUMES) -> None:
-    logging.fileConfig("logging.conf", disable_existing_loggers=False)
+    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
     # Creating SQL Connection
@@ -137,7 +137,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.puppeteer.check_report_date(db_conn, wr_date, volume):
+        if not db.puppeteer.check_report_date(db_conn, wr_date, volume, logger):
             volumes_to_check.append(volume)
             wrstat_dates[volume] = wr_date
 

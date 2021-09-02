@@ -54,7 +54,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
             lines_read += 1
             if lines_read % 5000000 == 0:
                 logger.debug(
-                    f"Read {lines_read} lines from wrstat for {scratch_disk}", flush=True)
+                    f"Read {lines_read} lines from wrstat for {scratch_disk}")
             line_info = line.split()
 
             """
@@ -197,7 +197,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
 
 def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool = False, path: T.Optional[str] = None) -> None:
-    logging.fileConfig("logging.conf", disable_existing_loggers=False)
+    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
     depth = int(depth) + 1

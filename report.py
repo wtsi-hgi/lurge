@@ -51,7 +51,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
     result = db_cursor.fetchall()
 
-    volume = f"scratch{wr_file.split('/')[-1].split('.')[0].split('_')[1]}"
+    volume = wr_file.split('/')[-1].split('.')[0].split('_')[1]
 
     groups: T.Dict[str, T.Dict[str, T.Any]] = {}
     for row in result:
@@ -79,7 +79,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
             # print out progress report every ~30 seconds
             if lines_processed % 5000000 == 0:
                 logger.debug(
-                    f"{lines_processed} records processed for {volume}", flush=True)
+                    f"{lines_processed} records processed for {volume}")
 
             line = line.split()
 
@@ -184,7 +184,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
             group_data.append((gidNumber, groupName, PI, volumeSize, volume,
                               lastModified, quota, archivedDirs, isHumgen))
 
-    logger.info("Processed data for {}.".format(volume), flush=True)
+    logger.info("Processed data for {}.".format(volume))
 
     return (volume, group_data)
 
@@ -226,7 +226,7 @@ def main() -> None:
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.report.checkReportDate(sql_db, wr_date, volume):
+        if not db.report.checkReportDate(sql_db, wr_date, volume, logger):
             wrstat_files.append(latest_wr)
             wrstat_dates[volume] = wr_date
 
@@ -239,22 +239,19 @@ def main() -> None:
     # Create the tables in the temporary DB
     generate_tables(tmp_db, logger)
 
-    # creates a process pool which will concurrently execute 5 processes
-    # to read each wrstat file
-    pool = multiprocessing.Pool(processes=5)
-
-    logger.info("Starting wrstat processors...", flush=True)
+    logger.info("Starting wrstat processors...")
     # sorts file list alphabetically, so that the volumes are in the same order
     # regardless of how the script arguments are given. This is useful for
     # having an ordered multiprocess output later.
     wrstat_files.sort()
 
+    # creates a process pool which will concurrently execute 5 processes
+    # to read each wrstat file
     # distribute input files to processes running instances of process_wrstat()
     try:
-        wr_data = pool.starmap(process_wrstat, zip(
-            wrstat_files, repeat(logger)))
-        pool.close()
-        pool.join()
+        with multiprocessing.Pool(processes=len(wrstat_files)) as pool:
+            wr_data = pool.starmap(process_wrstat, zip(
+                wrstat_files, repeat(logger)))
     except Exception as e:
         sql_db.close()
         tmp_db.close()
@@ -288,7 +285,7 @@ def main() -> None:
         tmp_db, sql_db, tables, wrstat_dates, logger)
 
     logger.info("Writing report data to .tsv file...")
-    utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR)
+    utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR, logger)
 
     logger.info("Cleaning up...")
     sql_db.close()
