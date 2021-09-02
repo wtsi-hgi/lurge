@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import logging
+import logging.config
 import os
 import sys
 
@@ -9,6 +11,9 @@ from directory_config import REPORT_DIR
 
 
 def main(modes: T.Set[str]) -> None:
+    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+    logger = logging.getLogger("manager")
+
     # Remove any leftover sqlite files
     try:
         os.remove(f"{REPORT_DIR}_lurge_tmp_sqlite.db")
@@ -17,16 +22,19 @@ def main(modes: T.Set[str]) -> None:
 
     if "reporter" in modes:
         # Run report generator
+        logger.info("Running reporter")
         import report
         report.main()
 
     if "inspector" in modes:
         # Run the inspector, defaulting to adding to SQL DB
+        logger.info("Running inspector")
         import project_inspector
         project_inspector.main(tosql=True)
 
     if "puppeteer" in modes:
         # Run puppeteer - defaults to all volumes
+        logger.info("Running puppeteer")
         import puppeteer
         puppeteer.main()
 

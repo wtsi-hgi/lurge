@@ -2,6 +2,7 @@ import argparse
 import base64
 import gzip
 from itertools import repeat
+import logging
 import multiprocessing
 import pathlib
 import re
@@ -27,7 +28,7 @@ VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
 PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
 
 
-def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int) -> T.Dict[str, T.Any]:
+def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int, logger: logging.Logger) -> T.Dict[str, T.Any]:
     """Returns a dictionary mapping paths to objects of properties
 
     @param path - List of paths to root directories to scan from
@@ -41,18 +42,18 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
     segmented_path = paths[0].split("/")
     scratch_disk = "/".join(segmented_path[0:2])
     root_parent = "/".join(segmented_path[0:-1])
-    report_path = utils.finder.findReport(scratch_disk, WRSTAT_DIR)
+    report_path = utils.finder.findReport(scratch_disk, WRSTAT_DIR, logger)
 
     directory_reports: T.Dict[str, DirectoryReport] = {}
 
     # Reading over every line in the wrstat report
-    print(f"Reading wrstat output {report_path}")
+    logger.info(f"Reading wrstat output {report_path}")
     lines_read = 0
     with gzip.open(report_path, "rt") as wrstat:
         for line in wrstat:
             lines_read += 1
             if lines_read % 5000000 == 0:
-                print(
+                logger.debug(
                     f"Read {lines_read} lines from wrstat for {scratch_disk}", flush=True)
             line_info = line.split()
 
@@ -196,6 +197,9 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
 
 def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool = False, path: T.Optional[str] = None) -> None:
+    logging.fileConfig("logging.conf", disable_existing_loggers=False)
+    logger = logging.getLogger(__name__)
+
     depth = int(depth) + 1
 
     if path is not None:
@@ -222,7 +226,8 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
                 zip(
                     ALL_PROJECTS.values(),
                     repeat(humgen_names),
-                    repeat(depth)
+                    repeat(depth),
+                    repeat(logger)
                 )
             )
 
@@ -239,7 +244,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
         # Write to MySQL database
         db_conn = db.common.getSQLConnection(config)
         db.inspector.load_inspections_into_sql(
-            db_conn, directories_info, volume, WRSTAT_DIR)
+            db_conn, directories_info, volume, WRSTAT_DIR, logger)
     else:
         # Printing to stdout
         print("Last modified is relative to wrstat, so may be a few days off")
@@ -251,7 +256,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
         for volume in directories_info:
             utils.table.print_table(
-                directories_info[volume], volume, mode, WRSTAT_DIR)
+                directories_info[volume], volume, mode, WRSTAT_DIR, logger)
 
 
 if __name__ == "__main__":

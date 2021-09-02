@@ -1,9 +1,10 @@
 import csv
+import logging
 import sqlite3
 import typing as T
 
 
-def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, report_dir: str) -> None:
+def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, report_dir: str, logger: logging.Logger) -> None:
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
     file.
@@ -25,8 +26,9 @@ def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, 
                                 "Used (bytes)", "Quota (bytes)",
                                 "Last Modified (days)", "Archived Directories", "Is Humgen?"])
 
+        logger.info("Adding data to tsv report")
         for table in tables:
-            print("Inserting data for {}...".format(table))
+            logger.debug("Inserting data for {}...".format(table))
             db_cursor.execute('''SELECT volume, PI, groupName, volumeSize,
                 quota, lastModified, archivedDirs, isHumgen FROM {}
                 ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
@@ -44,4 +46,4 @@ def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, 
 
                 report_writer.writerow(data)
 
-    print("{} created.".format(name))
+    logger.info("{} created.".format(name))

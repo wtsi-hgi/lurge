@@ -1,12 +1,13 @@
 import datetime
 from collections import defaultdict
+import logging
 import sqlite3
 import typing as T
 
 import mysql.connector
 
 
-def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date, volume: int):
+def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date, volume: int, logger: logging.Logger):
     """
     Checks the dates in the MySQL database to see if date 'date'
     is already recorded.
@@ -22,12 +23,12 @@ def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date
 
     for (result,) in sql_cursor:
         if (date == result):
-            print(f"{volume} already has DB data for {date}")
+            logger.warning(f"{volume} already has DB data for {date}")
             return True
     return False
 
 
-def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], wrstat_dates: T.Dict[int, datetime.date]):
+def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger):
     """
     Reads the contents of tables in tmp_db and writes them to a MySQL database.
 
@@ -70,8 +71,9 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
 
     # iterates over each row in each SQLite table, and just moves the data over
     # into a single MySQL table
+    logger.info("Adding data to MySQL table")
     for table in tables:
-        print("Inserting data for {}...".format(table))
+        logger.debug("Inserting data for {}...".format(table))
         tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
             lastModified, archivedDirs, isHumgen FROM {}
             ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
@@ -123,4 +125,4 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
             ))
 
     sql_db.commit()
-    print("Report data loaded into MySQL.")
+    logger.info("Report data loaded into MySQL.")

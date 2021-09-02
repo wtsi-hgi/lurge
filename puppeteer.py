@@ -1,6 +1,8 @@
 import base64
 import datetime
 import gzip
+from itertools import repeat
+import logging
 import multiprocessing
 import sys
 import typing as T
@@ -19,8 +21,9 @@ from directory_config import VOLUMES, WRSTAT_DIR
 # because its the only other Metallica song I know
 
 
-def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
-    report_path = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR)
+def processVault(volume: int, logger: logging.Logger) -> T.Dict[str, VaultPuppet]:
+    report_path = utils.finder.findReport(
+        f"scratch{volume}", WRSTAT_DIR, logger)
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
 
     # 1st Run to Get Vaults
@@ -31,7 +34,7 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
             # Logging
             lines_read += 1
             if lines_read % 5000000 == 0:
-                print(
+                logger.debug(
                     f"Read {lines_read} lines from {report_path} - Run 1", flush=True)
 
             # Decode the Path, Split it and See If We Care
@@ -78,7 +81,7 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
             # Logging
             lines_read += 1
             if lines_read % 5000000 == 0:
-                print(
+                logger.debug(
                     f"Read {lines_read} lines from {report_path} - Run 2", flush=True)
 
             # Decode the Path, Split it and See If We Care
@@ -111,11 +114,14 @@ def processVault(volume: int) -> T.Dict[str, VaultPuppet]:
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 
-    print(f"Done reading wrstat twice for {volume}", flush=True)
+    logger.info(f"Done reading wrstat twice for {volume}", flush=True)
     return volume, master_of_puppets
 
 
 def main(volumes: T.List[int] = VOLUMES) -> None:
+    logging.fileConfig("logging.conf", disable_existing_loggers=False)
+    logger = logging.getLogger(__name__)
+
     # Creating SQL Connection
     db_conn = db.common.getSQLConnection(config)
 
@@ -125,7 +131,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in volumes:
-        latest_wr = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR)
+        latest_wr = utils.finder.findReport(
+            f"scratch{volume}", WRSTAT_DIR, logger)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
@@ -135,11 +142,11 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
             wrstat_dates[volume] = wr_date
 
     with multiprocessing.Pool(processes=len(volumes)) as pool:
-        vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.map(
-            processVault, volumes_to_check)
+        vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.starmap(
+            processVault, zip(volumes_to_check, repeat(logger)))
 
     # Write to MySQL database
-    db.puppeteer.write_to_db(db_conn, vault_reports, wrstat_dates)
+    db.puppeteer.write_to_db(db_conn, vault_reports, wrstat_dates, logger)
 
 
 if __name__ == "__main__":

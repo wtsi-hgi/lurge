@@ -1,3 +1,4 @@
+import logging
 import os
 import typing as T
 
@@ -9,10 +10,10 @@ from lurge_types.directory_report import DirectoryReport
 SCALING_FACTOR = 2**30  # bytes / 2**30 = GiB
 
 
-def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_directory_info: T.Dict[str, T.Dict[str, DirectoryReport]], scratch_disk: str, report_dir: str):
-    print("Writing results to MySQL database")
+def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_directory_info: T.Dict[str, T.Dict[str, DirectoryReport]], scratch_disk: str, report_dir: str, logger: logging.Logger):
+    logger.info("Writing results to MySQL database")
 
-    report_path = finder.findReport(scratch_disk, report_dir)
+    report_path = finder.findReport(scratch_disk, report_dir, logger)
     wrstat_date = int(os.stat(report_path).st_mtime)
 
     """
@@ -184,4 +185,4 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
     db_conn.commit()
 
     # and we're done.
-    print("Added data to MySQL Database")
+    logger.info("Added data to MySQL Database")

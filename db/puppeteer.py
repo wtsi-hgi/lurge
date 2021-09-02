@@ -1,4 +1,5 @@
 import datetime
+import logging
 import typing as T
 
 from lurge_types.vault import VaultPuppet
@@ -6,7 +7,7 @@ from lurge_types.vault import VaultPuppet
 import mysql.connector
 
 
-def check_report_date(db_conn: mysql.connector.MySQLConnection, date: datetime.date, volume: int):
+def check_report_date(db_conn: mysql.connector.MySQLConnection, date: datetime.date, volume: int, logger: logging.Logger):
     """
     Checks the dates in the MySQL database to see if date 'date'
     is already recorded.
@@ -22,13 +23,13 @@ def check_report_date(db_conn: mysql.connector.MySQLConnection, date: datetime.d
 
     for (result,) in sql_cursor:
         if (date == result):
-            print(f"{volume} already has DB data for {date}")
+            logger.warning(f"{volume} already has DB data for {date}")
             return True
     return False
 
 
-def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], wrstat_dates: T.Dict[int, datetime.date]) -> None:
-    print("Writing results to MySQL database")
+def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger) -> None:
+    logger.info("Writing results to MySQL database")
 
     cursor = conn.cursor()
 
@@ -65,7 +66,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
 
     # Now, we're going to go through all the VaultReports and add each as a DB record
     for volume, reports in vault_reports:
-        print(f"Databasing {volume}")
+        logger.debug(f"Databasing {volume}")
         for vault in reports.values():
             # Add foreign keys if they don't exist
             # We're NOT adding more Action items
@@ -107,4 +108,4 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
             ))
 
     conn.commit()
-    print("Puppeteer data loaded into MySQL")
+    logger.info("Puppeteer data loaded into MySQL")

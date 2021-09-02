@@ -1,7 +1,8 @@
+from itertools import repeat
 import os
-import re
 import datetime
 import subprocess
+import logging
 import multiprocessing
 import sqlite3
 import gzip
@@ -36,7 +37,7 @@ def scanDirectory(directory: str) -> T.Optional[str]:
     return None
 
 
-def process_wrstat(wr_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
+def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     """
     Processes a single wrstat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
@@ -64,9 +65,8 @@ def process_wrstat(wr_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
                             'lastModified': 0, 'volume': volume, 'isHumgen': True}
 
     # lazily reads the wrstat file without unzipping the whole thing first
-    starttime = datetime.datetime.now()
     lines_processed = 0
-    print("Opening {} for reading...".format(wr_file))
+    logger.info("Opening {} for reading...".format(wr_file))
 
     with gzip.open(wr_file, 'rt') as wr_text:
         # each line in the wrstat file has the following whitespace separated
@@ -77,10 +77,9 @@ def process_wrstat(wr_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
         for line in wr_text:
 
             # print out progress report every ~30 seconds
-            if (datetime.datetime.now() - starttime).seconds > 30:
-                starttime = datetime.datetime.now()
-                print("{:%H:%M:%S}: {} records processed for {}".format(
-                    starttime, lines_processed, volume), flush=True)
+            if lines_processed % 5000000 == 0:
+                logger.debug(
+                    f"{lines_processed} records processed for {volume}", flush=True)
 
             line = line.split()
 
@@ -185,16 +184,16 @@ def process_wrstat(wr_file: str) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
             group_data.append((gidNumber, groupName, PI, volumeSize, volume,
                               lastModified, quota, archivedDirs, isHumgen))
 
-    print("Processed data for {}.".format(volume), flush=True)
+    logger.info("Processed data for {}.".format(volume), flush=True)
 
     return (volume, group_data)
 
 
-def generate_tables(tmp_db: sqlite3.Connection):
+def generate_tables(tmp_db: sqlite3.Connection, logger: logging.Logger):
     # Create the temporary sqlite database tables
     db_cursor = tmp_db.cursor()
     for vol in VOLUMES:
-        print(f"Creating table scratch{vol}")
+        logger.info(f"Creating table scratch{vol}")
         db_cursor.execute(f"""
             CREATE TABLE scratch{vol} (gidNumber INTEGER PRIMARY KEY,
             groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
@@ -202,14 +201,17 @@ def generate_tables(tmp_db: sqlite3.Connection):
             archivedDirs TEXT, isHumgen INTEGER)
         """)
         tmp_db.commit()
-    print("created tables")
+    logger.info("created tables")
 
 
 def main() -> None:
+    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+    logger = logging.getLogger(__name__)
+
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
-    print("Establishing MySQL connection...")
+    logger.info("Establishing MySQL connection...")
     sql_db = db.common.getSQLConnection(config)
 
     # Finding most recent wrstat files for each volume
@@ -218,7 +220,8 @@ def main() -> None:
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in VOLUMES:
-        latest_wr = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR)
+        latest_wr = utils.finder.findReport(
+            f"scratch{volume}", WRSTAT_DIR, logger)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
@@ -227,20 +230,20 @@ def main() -> None:
             wrstat_files.append(latest_wr)
             wrstat_dates[volume] = wr_date
 
-    print("Establishing LDAP connection...")
+    logger.info("Establishing LDAP connection...")
     ldap_con = utils.ldap.getLDAPConnection()
 
-    print("Collecting group information...")
+    logger.info("Collecting group information...")
     utils.ldap.add_humgen_ldap_to_db(ldap_con, tmp_db)
 
     # Create the tables in the temporary DB
-    generate_tables(tmp_db)
+    generate_tables(tmp_db, logger)
 
     # creates a process pool which will concurrently execute 5 processes
     # to read each wrstat file
     pool = multiprocessing.Pool(processes=5)
 
-    print("Starting wrstat processors...", flush=True)
+    logger.info("Starting wrstat processors...", flush=True)
     # sorts file list alphabetically, so that the volumes are in the same order
     # regardless of how the script arguments are given. This is useful for
     # having an ordered multiprocess output later.
@@ -248,7 +251,8 @@ def main() -> None:
 
     # distribute input files to processes running instances of process_wrstat()
     try:
-        wr_data = pool.map(process_wrstat, wrstat_files)
+        wr_data = pool.starmap(process_wrstat, zip(
+            wrstat_files, repeat(logger)))
         pool.close()
         pool.join()
     except Exception as e:
@@ -262,7 +266,7 @@ def main() -> None:
 
     db_cursor = tmp_db.cursor()
 
-    print("adding data to temporary database")
+    logger.info("adding data to temporary database")
     for entry in group_data:
         (gidNumber, groupName, PI, volumeSize, volume, lastModified,
          quota, archivedDirs, isHumgen) = entry
@@ -275,22 +279,23 @@ def main() -> None:
                           )
 
     tmp_db.commit()
-    print("added data to temporary database")
+    logger.info("added data to temporary database")
 
     date = datetime.date.today().strftime("%Y-%m-%d")
 
-    print("Transferring report data to MySQL database...")
-    db.report.load_usage_report_to_sql(tmp_db, sql_db, tables, wrstat_dates)
+    logger.info("Transferring report data to MySQL database...")
+    db.report.load_usage_report_to_sql(
+        tmp_db, sql_db, tables, wrstat_dates, logger)
 
-    print("Writing report data to .tsv file...")
+    logger.info("Writing report data to .tsv file...")
     utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR)
 
-    print("Cleaning up...")
+    logger.info("Cleaning up...")
     sql_db.close()
     tmp_db.close()
     # delete the on-disk SQLite database file
     os.remove(DATABASE_NAME)
-    print("Done.")
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
