@@ -15,7 +15,7 @@ import utils.ldap
 import report_config as config
 
 from lurge_types.vault import VaultPuppet
-from directory_config import VOLUMES, WRSTAT_DIR
+from directory_config import VOLUMES, WRSTAT_DIR, LOGGING_CONFIG
 
 # If Vault has Enter Sandman references in, I'm putting Master of Puppets references here,
 # because its the only other Metallica song I know
@@ -119,7 +119,7 @@ def processVault(volume: int, logger: logging.Logger) -> T.Dict[str, VaultPuppet
 
 
 def main(volumes: T.List[int] = VOLUMES) -> None:
-    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+    logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
     # Creating SQL Connection

@@ -19,7 +19,7 @@ import utils.tsv
 
 import report_config as config
 
-from directory_config import DATABASE_NAME, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES
+from directory_config import DATABASE_NAME, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:
@@ -205,7 +205,7 @@ def generate_tables(tmp_db: sqlite3.Connection, logger: logging.Logger):
 
 
 def main() -> None:
-    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+    logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
     # temporary SQLite database used to organise data

@@ -7,11 +7,11 @@ import sys
 
 import typing as T
 
-from directory_config import REPORT_DIR
+from directory_config import REPORT_DIR, LOGGING_CONFIG
 
 
 def main(modes: T.Set[str]) -> None:
-    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+    logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger("manager")
 
     # Remove any leftover sqlite files

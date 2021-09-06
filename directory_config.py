@@ -2,6 +2,7 @@
 WRSTAT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/wrstat/data/"
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
 VOLUMES = [114, 115, 118, 119, 123]
+LOGGING_CONFIG = "/lustre/scratch115/teams/hgi/lustre-usage/logging.conf"
 
 
 # Manager Config

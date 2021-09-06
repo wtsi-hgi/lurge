@@ -18,7 +18,7 @@ from lurge_types.directory_report import DirectoryReport
 
 import report_config as config
 
-from directory_config import WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS
+from directory_config import WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
 
 
 # Regexs for File Types
@@ -197,7 +197,7 @@ def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[s
 
 
 def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool = False, path: T.Optional[str] = None) -> None:
-    logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+    logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
     depth = int(depth) + 1
