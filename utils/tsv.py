@@ -59,9 +59,9 @@ def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserRepo
         writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
         writer.writerow(["username", "data", *user_reports.keys()])
         for uid, uname in usernames.items():
-            writer.writerow([uname, "size", *[user_reports[vol][uid].size/2 **
-                            20 if uid in user_reports[vol] else 0 for vol in user_reports]])
-            writer.writerow([uname, "mtime", *[user_reports[vol][uid]._mtime.strftime('%Y-%m-%d')
-                            if uid in user_reports[vol] else "-" for vol in user_reports]])
+            writer.writerow([uname, "size", *[user_reports[vol][str(uid)].size/2 **
+                            20 if str(uid) in user_reports[vol] else 0 for vol in user_reports]])
+            writer.writerow([uname, "mtime", *[user_reports[vol][str(uid)]._mtime.strftime('%Y-%m-%d')
+                            if str(uid) in user_reports[vol] else "-" for vol in user_reports]])
 
     logger.info("Done writing user report info to TSV file")
