@@ -13,6 +13,8 @@ from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
 from lurge_types.user import UserReport
 
 import utils.finder
+import utils.ldap
+import utils.tsv
 
 
 def process_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[UserReport]:
@@ -56,8 +58,6 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
     volumes_to_check: T.List[int] = []
     for volume in volumes:
-        latest_wr = utils.finder.findReport(
-            f"scratch{volume}", WRSTAT_DIR, logger)
         # TODO: Do we need to check the date?
         volumes_to_check.append(volume)
 
@@ -66,7 +66,15 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
             volumes_to_check, repeat(logger)
         ))
 
-    print(user_reports)
+    ldap_conn = utils.ldap.getLDAPConnection()
+
+    unique_uids = set([int(x) for y in user_reports for x in y.keys()])
+    usernames: T.Dict[int, str] = {}
+    for uid in unique_uids:
+        usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
+
+    utils.tsv.create_tsv_user_report(user_reports, usernames, logger)
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
