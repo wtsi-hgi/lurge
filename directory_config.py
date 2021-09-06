@@ -1,8 +1,8 @@
 # Global Config
 WRSTAT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/wrstat/data/"
-REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
+REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/"
 VOLUMES = [114, 115, 118, 119, 123]
-LOGGING_CONFIG = "/lustre/scratch115/teams/hgi/lustre-usage/logging.conf"
+LOGGING_CONFIG = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/lurge/logging.conf"
 
 
 # Manager Config
@@ -11,7 +11,7 @@ MAX_DAYS_AGO = 10
 
 # Reporter Config
 # temporary sqlite database location
-DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
+DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/_lurge_tmp_sqlite.db"
 
 # directories with group directories to scan for .imirrored
 GROUP_DIRECTORIES = {
