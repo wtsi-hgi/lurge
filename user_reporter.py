@@ -17,7 +17,7 @@ import utils.ldap
 import utils.tsv
 
 
-def process_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[UserReport]:
+def process_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
     report_path = utils.finder.findReport(
         f"scratch{volume}", WRSTAT_DIR, logger
     )
