@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 from directory_config import REPORT_DIR
 import logging
+import logging.config
 from lurge_types.user import UserReport
 import sqlite3
 import typing as T
@@ -52,12 +53,15 @@ def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, 
     logger.info("{} created.".format(name))
 
 
-def create_tsv_user_report(user_repots: T.Dict[int, T.DefaultDict[str, UserReport]], usernames: T.Dict[int, str], logger: logging.Logger) -> None:
+def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserReport]], usernames: T.Dict[int, str], logger: logging.Logger) -> None:
+    logger.info("Writing user report info to TSV file")
     with open(f"{REPORT_DIR}user-reports/{datetime.today().strftime('%Y-%m-%d')}.tsv", "w", newline="") as rf:
-        writer = csv.writer(rf, delimeter="\t", quoting=csv.QUOTE_NONE)
-        writer.writerow(["username", "data", *user_repots.keys()])
+        writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
+        writer.writerow(["username", "data", *user_reports.keys()])
         for uid, uname in usernames.items():
-            writer.writerow([uname, "size", *[vol[uid].size/2 **
-                            20 if uid in vol else 0 for vol in user_repots]])
-            writer.writerow([uname, "mtime", *[vol[uid]._mtime.strftime('%Y-%m-%d')
-                            if uid in vol else "-" for vol in user_repots]])
+            writer.writerow([uname, "size", *[user_reports[vol][uid].size/2 **
+                            20 if uid in user_reports[vol] else 0 for vol in user_reports]])
+            writer.writerow([uname, "mtime", *[user_reports[vol][uid]._mtime.strftime('%Y-%m-%d')
+                            if uid in user_reports[vol] else "-" for vol in user_reports]])
+
+    logger.info("Done writing user report info to TSV file")

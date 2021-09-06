@@ -68,12 +68,16 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
     ldap_conn = utils.ldap.getLDAPConnection()
 
+    volume_user_reports = {}
+    for i in range(len(volumes_to_check)):
+        volume_user_reports[volumes_to_check[i]] = user_reports[i]
+
     unique_uids = set([int(x) for y in user_reports for x in y.keys()])
     usernames: T.Dict[int, str] = {}
     for uid in unique_uids:
         usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
 
-    utils.tsv.create_tsv_user_report(user_reports, usernames, logger)
+    utils.tsv.create_tsv_user_report(volume_user_reports, usernames, logger)
 
 
 if __name__ == "__main__":

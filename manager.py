@@ -38,11 +38,17 @@ def main(modes: T.Set[str]) -> None:
         import puppeteer
         puppeteer.main()
 
+    if "users" in modes:
+        # Run the user_reporter - defaults to all volumes
+        logger.info("Running user reporter")
+        import user_reporter
+        user_reporter.main()
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        sys.exit("Running modes must be provided, inspector, reporter, puppeteer")
+        sys.exit("Running modes must be provided, inspector, reporter, puppeteer, users")
     for arg in sys.argv[1:]:
-        if arg not in ["reporter", "inspector", "puppeteer"]:
-            sys.exit("Available running modes are inspector, reporter, puppeteer")
+        if arg not in ["reporter", "inspector", "puppeteer", "users"]:
+            sys.exit("Available running modes are inspector, reporter, puppeteer, users")
     main(set(sys.argv[1:]))

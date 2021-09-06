@@ -73,4 +73,7 @@ def get_username(ldap_conn, uid: int) -> str:
     result = ldap_conn.search_s(
         "ou=people,dc=sanger,dc=ac,dc=uk", ldap.SCOPE_ONELEVEL, f"(uidNumber={uid})", ["uid"])
 
-    return result[0][1]["uid"][0].decode("UTF-8")
+    try:
+        return result[0][1]["uid"][0].decode("UTF-8")
+    except IndexError:
+        return ""
