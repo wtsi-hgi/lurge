@@ -37,14 +37,15 @@ def process_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, Us
             wr_line_info = line.split()
 
             user_id = wr_line_info[2]
+            group_id = wr_line_info[3]
 
             try:
-                user_reports[user_id].size += int(
+                user_reports[user_id].size[group_id] += int(
                     wr_line_info[1]) // int(wr_line_info[9])
             except ZeroDivisionError:
                 pass
 
-            user_reports[user_id].mtime(int(wr_line_info[5]))
+            user_reports[user_id].mtime(int(wr_line_info[5]), group_id)
 
     logger.info(f"Finished processing {volume}")
     return user_reports
@@ -74,10 +75,12 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
     unique_uids = set([int(x) for y in user_reports for x in y.keys()])
     usernames: T.Dict[int, str] = {}
+    user_groups: T.Dict[str, T.List[str]] = {}
     for uid in unique_uids:
         usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
+        user_groups[uid] = [x.size.keys() for y in user_reports for x in y.values()]
 
-    utils.tsv.create_tsv_user_report(volume_user_reports, usernames, logger)
+    utils.tsv.create_tsv_user_report(volume_user_reports, usernames, user_groups, logger)
 
 
 if __name__ == "__main__":

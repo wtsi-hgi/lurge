@@ -1,16 +1,17 @@
+from collections import defaultdict
 import datetime
 import typing as T
 
 
 class UserReport:
     def __init__(self):
-        self.size: int = 0
-        self._mtime: T.Optional[datetime.date] = None
+        self.size: T.DefaultDict[str, int] = defaultdict(int)
+        self._mtime: T.DefaultDict[str, datetime.date] = defaultdict(datetime.date)
 
-    def mtime(self, t):
+    def mtime(self, t, grp):
         new_date = datetime.datetime.fromtimestamp(t).date()
-        if self._mtime is None or new_date > self._mtime:
-            self._mtime = new_date
+        if new_date > self._mtime[grp]:
+            self._mtime[grp] = new_date
 
     def __str__(self) -> str:
         return str({
