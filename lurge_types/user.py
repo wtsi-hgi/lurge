@@ -6,7 +6,8 @@ import typing as T
 class UserReport:
     def __init__(self):
         self.size: T.DefaultDict[str, int] = defaultdict(int)
-        self._mtime: T.DefaultDict[str, datetime.date] = defaultdict(datetime.date)
+        self._mtime: T.DefaultDict[str,
+                                   datetime.date] = defaultdict(datetime.date)
 
     def mtime(self, t, grp):
         new_date = datetime.datetime.fromtimestamp(t).date()
