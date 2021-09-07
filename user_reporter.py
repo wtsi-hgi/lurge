@@ -78,8 +78,12 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     user_groups: T.Dict[str, T.List[str]] = {}
     for uid in unique_uids:
         usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
-        user_groups[uid] = [x.size.keys()
-                            for y in user_reports for x in y.values()]
+        user_groups[uid] = set([key
+                            for vol in user_reports
+                            for (user, rep) in vol.items()
+                            for key in list(rep.size.keys())
+                            if user == str(uid)
+                            ])
 
     utils.tsv.create_tsv_user_report(
         volume_user_reports, usernames, user_groups, logger)

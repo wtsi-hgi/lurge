@@ -58,11 +58,21 @@ def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserRepo
     with open(f"{REPORT_DIR}user-reports/{datetime.today().strftime('%Y-%m-%d')}.tsv", "w", newline="") as rf:
         writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
         writer.writerow(["username", "data", *user_reports.keys()])
+
         for uid, uname in usernames.items():
             for gid in user_groups[uid]:
-                writer.writerow([uname, "size", "gid", *[round(user_reports[vol][str(uid)].size[gid]/2 **
-                                20, 2) if str(uid) in user_reports[vol] else 0 for vol in user_reports]])
-                writer.writerow([uname, "mtime", "gid", *[user_reports[vol][str(uid)]._mtime[gid].strftime('%Y-%m-%d')
-                                if str(uid) in user_reports[vol] else "-" for vol in user_reports]])
+
+                writer.writerow([uname, "size", gid, *[
+                    round(user_reports[vol][str(uid)].size[gid]/2 ** 20, 2)
+                    if str(uid) in user_reports[vol] and gid in user_reports[vol][str(uid)].size else 0
+                    for vol in user_reports
+                ]])
+
+                writer.writerow([uname, "mtime", gid, *[
+                    user_reports[vol][str(uid)]._mtime[gid].strftime(
+                        '%Y-%m-%d')
+                    if str(uid) in user_reports[vol] and gid in user_reports[vol][str(uid)]._mtime else "-"
+                    for vol in user_reports
+                ]])
 
     logger.info("Done writing user report info to TSV file")

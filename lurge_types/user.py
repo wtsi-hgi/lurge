@@ -3,11 +3,15 @@ import datetime
 import typing as T
 
 
+def _datetime_constructor():
+    return datetime.date(1970, 1, 1)
+
+
 class UserReport:
     def __init__(self):
         self.size: T.DefaultDict[str, int] = defaultdict(int)
         self._mtime: T.DefaultDict[str,
-                                   datetime.date] = defaultdict(datetime.date)
+                                   datetime.date] = defaultdict(_datetime_constructor)
 
     def mtime(self, t, grp):
         new_date = datetime.datetime.fromtimestamp(t).date()

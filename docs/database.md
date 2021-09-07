@@ -91,14 +91,16 @@ Filled out to:
 
 ### `vault`
 
-| Field           | Type | Constraints                        |
-| :---------------| :----| :----------------------------------|
-| record_id       | int  | PK auto_increment                  |
-| record_date     | date |                                    |
-| filepath        | text |                                    |
-| group_id        | int  | FK `group.group_id`                |
-| vault_action_id | int  | FK `vault_actions.vault_action_id` |
-| size            | int  |                                    |
-| file_owner      | text |                                    |
-| last_modified   | date |                                    |
-| volume_id       | int  | FK `volume.volume_id`              |
+| Field           | Type   | Constraints                        |
+| :---------------| :------| :----------------------------------|
+| record_id       | int    | PK auto_increment                  |
+| record_date     | date   |                                    |
+| filepath        | text   |                                    |
+| group_id        | int    | FK `group.group_id`                |
+| vault_action_id | int    | FK `vault_actions.vault_action_id` |
+| size            | bigint |                                    |
+| file_owner      | text   |                                    |
+| last_modified   | date   |                                    |
+| volume_id       | int    | FK `volume.volume_id`              |
+
+SQL definition in `github/wtsi-hgi/lustre-usage-db-transfer` uses `int` for size, but it isn't big enough
