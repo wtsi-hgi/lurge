@@ -61,7 +61,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         # TODO: Do we need to check the date?
         volumes_to_check.append(volume)
 
-    with multiprocessing.Pool(processes=len(volumes_to_check)) as pool:
+    with multiprocessing.Pool(processes=max(len(volumes_to_check), 1)) as pool:
         user_reports = pool.starmap(process_wrstat, zip(
             volumes_to_check, repeat(logger)
         ))

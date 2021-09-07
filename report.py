@@ -249,7 +249,7 @@ def main() -> None:
     # to read each wrstat file
     # distribute input files to processes running instances of process_wrstat()
     try:
-        with multiprocessing.Pool(processes=len(wrstat_files)) as pool:
+        with multiprocessing.Pool(processes=max(len(wrstat_files), 1)) as pool:
             wr_data = pool.starmap(process_wrstat, zip(
                 wrstat_files, repeat(logger)))
     except Exception as e:

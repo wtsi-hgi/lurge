@@ -141,7 +141,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
             volumes_to_check.append(volume)
             wrstat_dates[volume] = wr_date
 
-    with multiprocessing.Pool(processes=len(volumes)) as pool:
+    with multiprocessing.Pool(processes=max(len(volumes), 1)) as pool:
         vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.starmap(
             processVault, zip(volumes_to_check, repeat(logger)))
 
