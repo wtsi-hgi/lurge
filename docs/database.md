@@ -96,7 +96,7 @@ Filled out to:
 | record_id       | int    | PK auto_increment                  |
 | record_date     | date   |                                    |
 | filepath        | text   |                                    |
-| group_id        | int    | FK `group.group_id`                |
+| group_id        | int    | FK `unix_group.group_id`           |
 | vault_action_id | int    | FK `vault_actions.vault_action_id` |
 | size            | bigint |                                    |
 | file_owner      | text   |                                    |
@@ -104,3 +104,22 @@ Filled out to:
 | volume_id       | int    | FK `volume.volume_id`              |
 
 SQL definition in `github/wtsi-hgi/lustre-usage-db-transfer` uses `int` for size, but it isn't big enough
+
+### `user`
+
+| Field     | Type | Constraints       |
+| :---------| :----| :-----------------|
+| user_id   | int  | PK auto_increment |
+| user_name | text |                   |
+
+### `user_usage`
+
+| Field         | Type      | Constraints              |
+| :-------------| :---------| :------------------------|
+| record_id     | int       | PK auto_increment        |
+| record_date   | date      |                          |
+| user_id       | int       | FK `user.user_id`        |
+| group_id      | int       | FK `unix_group.group_id` |
+| volume_id     | int       | FK `volume.volume_id`    |
+| size          | bigint(8) |                          |
+| last_modified | date      |                          |

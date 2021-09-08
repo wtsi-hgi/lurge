@@ -55,8 +55,6 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
-    # TODO: Database or just TSV?
-
     volumes_to_check: T.List[int] = []
     for volume in volumes:
         # TODO: Do we need to check the date?

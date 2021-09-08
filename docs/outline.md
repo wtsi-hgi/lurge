@@ -4,11 +4,11 @@
 
 ### `cron.sh`
 
-- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `inspector` and `puppeteer`)
+- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `inspector`, `puppeteer` and `users`)
 
 ### `manager.py`
 
-- runs `reporter.py`, `inspector.py` or `puppeteer.py` as required
+- runs `reporter.py`, `inspector.py`, `puppeteer.py` or `user_reporter.py` as required
 
 ### `report.py`
 
@@ -83,6 +83,35 @@
         - if its not an action we care about, skip it
         - if the group or volume doesn't exist in the database - create it
         - adds the VaultPuppet as a record in the `vault` table
+
+### `user_reporter.py`
+
+- if not passed particular volumes to use, use all volumes
+- starts multiprocessing pool for how many wrstats it has to read over
+    - finds the most recent wrstat for each volume (`utils/finder.py`)
+    - creates a defaultdict of `UserReport` objects (`lurge_types/user.py`) for keeping the information
+    - iterates over wrstat file
+        - splits up the line information, extracts the user and group (indexes 2 and 3)
+        - it adds the size to the `UserReport` objects current size
+        - it passes the last modified time to `UserReport`, which'll update the one it stores if its more recent. this means this will end up being the most recent mtime
+        - within a `UserReport` object, the size and mtimes are actually stored as defaultdicts, with the key being the group involved.
+- next, it'll get some information from ldap, and turn the list of lists of reports into a dictionary, of volume:list_of_reports
+- we'll next grab all the unique user ids, and for each of them, store the username against the uid in `usernames`, and store all the groups the user is part of in a list in `user_groups`, where each value is a tuple, `(group_name, group_id)`.
+- now we can add all this information to the database (`db/user_reporter.py`)
+    - first, we'll grab all the foreign keys from the database and store them in memory
+    - next, we'll loop over each volume:list_of_reports pairing
+        - if the volume doesn't have a foreign key - add one
+        - we can now loop over every user:`UserReport` pairing
+            - if the username isn't in the DB - add it
+            - now we can loop over the user's groups
+                - if the group isn't in the database (you can see a pattern here) - add it
+                - finally, if the group_id is in the user's size dictionary for this particular volume, we can execute an `INSERT` query
+- now we can write all this information to a TSV file (`utils/tsv.py`)
+    - first, we'll write a header row
+    - we'll iterate over all the users we have
+        - we'll iterate over every group that user is in
+            - we'll write a row for that user/group combination with the size per volume, if the user has data in that volume associated to that group
+            - same for a row of last modified dates
 
 ### `group_splitter_cron.sh`
 * bsub: `group_splitter_manager.sh`

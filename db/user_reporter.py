@@ -1,7 +1,6 @@
 import datetime
 import logging
 from lurge_types.user import UserReport
-import mysql.connector
 import typing as T
 
 
@@ -81,7 +80,7 @@ def load_user_reports_to_db(conn, volume_user_reports: T.Dict[int, T.DefaultDict
                     db_group = None
 
                 if gid in report.size:
-                    cursor.execute("INxSERT INTO hgi_lustre_usage_new.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
+                    cursor.execute("INSERT INTO hgi_lustre_usage_new.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
                         datetime.datetime.today().date(),
                         db_user,
                         db_group,
