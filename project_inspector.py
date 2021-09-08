@@ -16,7 +16,7 @@ import utils.table
 
 from lurge_types.directory_report import DirectoryReport
 
-import report_config as config
+import db_config as config
 
 from directory_config import WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
 

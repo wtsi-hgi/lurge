@@ -12,7 +12,7 @@ import db.puppeteer
 import utils.finder
 import utils.ldap
 
-import report_config as config
+import db_config as config
 
 from lurge_types.vault import VaultPuppet
 from directory_config import VOLUMES, WRSTAT_DIR, LOGGING_CONFIG

@@ -14,6 +14,7 @@ import db.user_reporter
 import utils.finder
 import utils.ldap
 import utils.tsv
+import db_config as config
 
 
 def process_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
@@ -89,7 +90,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
                                 ])
 
     # Adding data to DB
-    db_conn = db.common.getSQLConnection()
+    db_conn = db.common.getSQLConnection(config)
     db.user_reports.load_user_reports_to_db(
         db_conn, volume_user_reports, usernames, user_groups, logger)
 

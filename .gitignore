@@ -1,4 +1,4 @@
-report_config.py
+db_config.py
 .DS_Store
 .venv
 .vscode

@@ -17,7 +17,7 @@ import utils.finder
 import utils.ldap
 import utils.tsv
 
-import report_config as config
+import db_config as config
 
 from directory_config import DATABASE_NAME, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
 
