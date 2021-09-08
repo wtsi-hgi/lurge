@@ -53,22 +53,22 @@ def createTsvReport(tmp_db: sqlite3.Connection, tables: T.List[str], date: str, 
     logger.info("{} created.".format(name))
 
 
-def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserReport]], usernames: T.Dict[int, str], user_groups: T.Dict[str, T.List[str]], logger: logging.Logger) -> None:
+def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserReport]], usernames: T.Dict[int, str], user_groups: T.Dict[str, T.List[T.Tuple[str, str]]], logger: logging.Logger) -> None:
     logger.info("Writing user report info to TSV file")
     with open(f"{REPORT_DIR}user-reports/{datetime.today().strftime('%Y-%m-%d')}.tsv", "w", newline="") as rf:
         writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
         writer.writerow(["username", "data", *user_reports.keys()])
 
         for uid, uname in usernames.items():
-            for gid in user_groups[uid]:
+            for grp_name, gid in user_groups[uid]:
 
-                writer.writerow([uname, "size", gid, *[
+                writer.writerow([uname, "size", grp_name, *[
                     round(user_reports[vol][str(uid)].size[gid]/2 ** 20, 2)
                     if str(uid) in user_reports[vol] and gid in user_reports[vol][str(uid)].size else 0
                     for vol in user_reports
                 ]])
 
-                writer.writerow([uname, "mtime", gid, *[
+                writer.writerow([uname, "mtime", grp_name, *[
                     user_reports[vol][str(uid)]._mtime[gid].strftime(
                         '%Y-%m-%d')
                     if str(uid) in user_reports[vol] and gid in user_reports[vol][str(uid)]._mtime else "-"

@@ -1,6 +1,3 @@
-import base64
-import binascii
-import datetime
 import gzip
 import logging
 import multiprocessing
@@ -12,6 +9,8 @@ from collections import defaultdict
 from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
 from lurge_types.user import UserReport
 
+import db.common
+import db.user_reporter
 import utils.finder
 import utils.ldap
 import utils.tsv
@@ -67,24 +66,34 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
             volumes_to_check, repeat(logger)
         ))
 
+    # Get some information from LDAP
     ldap_conn = utils.ldap.getLDAPConnection()
+    _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
 
-    volume_user_reports = {}
+    volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]] = {}
     for i in range(len(volumes_to_check)):
         volume_user_reports[volumes_to_check[i]] = user_reports[i]
 
+    # For every user, get their username and the groups they're in
     unique_uids = set([int(x) for y in user_reports for x in y.keys()])
     usernames: T.Dict[int, str] = {}
-    user_groups: T.Dict[str, T.List[str]] = {}
+    user_groups: T.Dict[str, T.List[T.Tuple[str, str]]] = {}
     for uid in unique_uids:
         usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
-        user_groups[uid] = set([key
-                            for vol in user_reports
-                            for (user, rep) in vol.items()
-                            for key in list(rep.size.keys())
-                            if user == str(uid)
-                            ])
+        user_groups[uid] = set([(groups[key], key)
+                                if key in groups else ("-", key)
+                                for vol in user_reports
+                                for (user, rep) in vol.items()
+                                for key in list(rep.size.keys())
+                                if user == str(uid)
+                                ])
 
+    # Adding data to DB
+    db_conn = db.common.getSQLConnection()
+    db.user_reports.load_user_reports_to_db(
+        db_conn, volume_user_reports, usernames, user_groups, logger)
+
+    # Creating TSV of data
     utils.tsv.create_tsv_user_report(
         volume_user_reports, usernames, user_groups, logger)
 

@@ -83,6 +83,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                         "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (vault.group, 1))
                     new_id = cursor.lastrowid
                     groups[vault.group] = new_id
+                    db_group = new_id
             else:
                 db_group = None
 
