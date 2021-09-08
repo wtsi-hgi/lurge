@@ -60,7 +60,7 @@ def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserRepo
         writer.writerow(["username", "data", *user_reports.keys()])
 
         for uid, uname in usernames.items():
-            for grp_name, gid in user_groups[uid]:
+            for grp_name, gid in user_groups[str(uid)]:
 
                 writer.writerow([uname, "size", grp_name, *[
                     round(user_reports[vol][str(uid)].size[gid]/2 ** 20, 2)

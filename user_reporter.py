@@ -81,17 +81,17 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     user_groups: T.Dict[str, T.List[T.Tuple[str, str]]] = {}
     for uid in unique_uids:
         usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
-        user_groups[uid] = set([(groups[key], key)
-                                if key in groups else ("-", key)
-                                for vol in user_reports
-                                for (user, rep) in vol.items()
-                                for key in list(rep.size.keys())
-                                if user == str(uid)
-                                ])
+        user_groups[str(uid)] = set([(groups[key], key)
+                                     if key in groups else ("-", key)
+                                     for vol in user_reports
+                                     for (user, rep) in vol.items()
+                                     for key in list(rep.size.keys())
+                                     if user == str(uid)
+                                     ])
 
     # Adding data to DB
     db_conn = db.common.getSQLConnection(config)
-    db.user_reports.load_user_reports_to_db(
+    db.user_reporter.load_user_reports_to_db(
         db_conn, volume_user_reports, usernames, user_groups, logger)
 
     # Creating TSV of data

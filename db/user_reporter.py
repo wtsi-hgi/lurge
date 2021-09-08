@@ -49,6 +49,7 @@ def load_user_reports_to_db(conn, volume_user_reports: T.Dict[int, T.DefaultDict
                 "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
             new_id = cursor.lastrowid
             volumes[f"scratch{volume}"] = new_id
+            conn.commit()
 
         for uid, report in reports.items():
 
@@ -59,6 +60,7 @@ def load_user_reports_to_db(conn, volume_user_reports: T.Dict[int, T.DefaultDict
                     cursor.execute(
                         "INSERT INTO hgi_lustre_usage_new.user (user_name) VALUES (%s);", (usernames[int(uid)],))
                     new_id = cursor.lastrowid
+                    conn.commit()
                     users[usernames[int(uid)]] = new_id
                     db_user = new_id
             else:
@@ -72,18 +74,21 @@ def load_user_reports_to_db(conn, volume_user_reports: T.Dict[int, T.DefaultDict
                         cursor.execute(
                             "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (grp_name, 1))
                         new_id = cursor.lastrowid
+                        conn.commit()
                         groups[grp_name] = new_id
                         db_group = new_id
                 else:
                     db_group = None
 
-                cursor.execute("INSERT INTO hgi_lustre_usage_new.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
-                    datetime.datetime.today().date(),
-                    db_user,
-                    db_group,
-                    volumes[f"scratch{volume}"],
-                    report.size[gid],
-                    report._mtime[gid]
-                ))
+                if gid in report.size:
+                    cursor.execute("INxSERT INTO hgi_lustre_usage_new.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
+                        datetime.datetime.today().date(),
+                        db_user,
+                        db_group,
+                        volumes[f"scratch{volume}"],
+                        report.size[gid],
+                        report._mtime[gid]
+                    ))
+    conn.commit()
 
     logger.info("Finished writing user reports to DB")
