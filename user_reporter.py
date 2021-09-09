@@ -1,3 +1,4 @@
+import datetime
 import gzip
 import logging
 import multiprocessing
@@ -55,10 +56,18 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
+    db_conn = db.common.getSQLConnection(config)
+
     volumes_to_check: T.List[int] = []
     for volume in volumes:
-        # TODO: Do we need to check the date?
-        volumes_to_check.append(volume)
+        latest_wr = utils.finder.findReport(
+            f"scratch{volume}", WRSTAT_DIR, logger)
+        wr_date_str = latest_wr.split("/")[-1].split("_")[0]
+        wr_date = datetime.date(int(wr_date_str[:4]), int(
+            wr_date_str[4:6]), int(wr_date_str[6:8]))
+
+        if not db.common.check_date(db_conn, "user_usage", wr_date, volume, logger):
+            volumes_to_check.append(volume)
 
     with multiprocessing.Pool(processes=max(len(volumes_to_check), 1)) as pool:
         user_reports = pool.starmap(process_wrstat, zip(
@@ -88,7 +97,6 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
                                      ])
 
     # Adding data to DB
-    db_conn = db.common.getSQLConnection(config)
     db.user_reporter.load_user_reports_to_db(
         db_conn, volume_user_reports, usernames, user_groups, logger)
 

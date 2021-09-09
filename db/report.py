@@ -7,27 +7,6 @@ import typing as T
 import mysql.connector
 
 
-def checkReportDate(sql_db: mysql.connector.MySQLConnection, date: datetime.date, volume: int, logger: logging.Logger):
-    """
-    Checks the dates in the MySQL database to see if date 'date'
-    is already recorded.
-
-    :param sql_db: MySQL connection to check for reports
-    :param date: The date of the report to be produced
-    """
-    sql_cursor = sql_db.cursor(buffered=True)
-    sql_cursor.execute(
-        """SELECT DISTINCT record_date FROM hgi_lustre_usage_new.lustre_usage
-        INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
-        WHERE scratch_disk = %s""", (f"scratch{volume}",))
-
-    for (result,) in sql_cursor:
-        if (date == result):
-            logger.warning(f"{volume} already has DB data for {date}")
-            return True
-    return False
-
-
 def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger):
     """
     Reads the contents of tables in tmp_db and writes them to a MySQL database.

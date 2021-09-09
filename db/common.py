@@ -1,3 +1,5 @@
+import datetime
+import logging
 import mysql.connector
 
 
@@ -15,3 +17,20 @@ def getSQLConnection(config) -> mysql.connector.MySQLConnection:
     )
 
     return db_con
+
+
+def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime.date, volume: int, logger: logging.Logger) -> bool:
+    # Checks the dates in the DB table to see if the date already has data for that particular volume
+
+    cursor = conn.cursor(buffered=True)
+    cursor.execute(
+        f"""SELECT DISTINCT record_date FROM hgi_lustre_usage_new.{table}
+        INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
+        WHERE scratch_disk = %s""", (f"scratch{volume}",)
+    )
+
+    for (result,) in cursor:
+        if date == result:
+            logger.warning(f"{volume} already has DB data for {date}")
+            return True
+        return False

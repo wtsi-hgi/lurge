@@ -137,7 +137,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.puppeteer.check_report_date(db_conn, wr_date, volume, logger):
+        if not db.common.check_date(db_conn, "vault", wr_date, volume, logger):
             volumes_to_check.append(volume)
             wrstat_dates[volume] = wr_date
 

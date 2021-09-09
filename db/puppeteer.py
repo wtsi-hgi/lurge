@@ -7,27 +7,6 @@ from lurge_types.vault import VaultPuppet
 import mysql.connector
 
 
-def check_report_date(db_conn: mysql.connector.MySQLConnection, date: datetime.date, volume: int, logger: logging.Logger):
-    """
-    Checks the dates in the MySQL database to see if date 'date'
-    is already recorded.
-
-    :param sql_db: MySQL connection to check for reports
-    :param date: The date of the report to be produced
-    """
-    sql_cursor = db_conn.cursor(buffered=True)
-    sql_cursor.execute(
-        """SELECT DISTINCT record_date FROM hgi_lustre_usage_new.vault
-        INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
-        WHERE scratch_disk = %s""", (f"scratch{volume}",))
-
-    for (result,) in sql_cursor:
-        if (date == result):
-            logger.warning(f"{volume} already has DB data for {date}")
-            return True
-    return False
-
-
 def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger) -> None:
     logger.info("Writing results to MySQL database")
 
