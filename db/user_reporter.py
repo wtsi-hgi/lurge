@@ -4,7 +4,14 @@ from lurge_types.user import UserReport
 import typing as T
 
 
-def load_user_reports_to_db(conn, volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]], usernames: T.Dict[int, str], user_groups: T.Dict[str, T.List[T.Tuple[str, str]]], logger: logging.Logger):
+def load_user_reports_to_db(
+    conn,
+    volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]],
+    usernames: T.Dict[int, str],
+    user_groups: T.Dict[str, T.List[T.Tuple[str, str]]],
+    wrstat_dates: T.Dict[int, datetime.date],
+    logger: logging.Logger
+):
     logger.info("Writing results to MySQL database")
 
     cursor = conn.cursor()
@@ -81,7 +88,7 @@ def load_user_reports_to_db(conn, volume_user_reports: T.Dict[int, T.DefaultDict
 
                 if gid in report.size:
                     cursor.execute("INSERT INTO hgi_lustre_usage_new.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
-                        datetime.datetime.today().date(),
+                        wrstat_dates[volume],
                         db_user,
                         db_group,
                         volumes[f"scratch{volume}"],

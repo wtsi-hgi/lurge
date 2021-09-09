@@ -59,6 +59,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     db_conn = db.common.getSQLConnection(config)
 
     volumes_to_check: T.List[int] = []
+    wrstat_dates: T.Dict[int, datetime.date] = {}
+
     for volume in volumes:
         latest_wr = utils.finder.findReport(
             f"scratch{volume}", WRSTAT_DIR, logger)
@@ -68,6 +70,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
         if not db.common.check_date(db_conn, "user_usage", wr_date, volume, logger):
             volumes_to_check.append(volume)
+            wrstat_dates[volume] = wr_date
 
     with multiprocessing.Pool(processes=max(len(volumes_to_check), 1)) as pool:
         user_reports = pool.starmap(process_wrstat, zip(
@@ -79,8 +82,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
 
     volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]] = {}
-    for i in range(len(volumes_to_check)):
-        volume_user_reports[volumes_to_check[i]] = user_reports[i]
+    for i, rep in enumerate(volumes_to_check):
+        volume_user_reports[rep] = user_reports[i]
 
     # For every user, get their username and the groups they're in
     unique_uids = set([int(x) for y in user_reports for x in y.keys()])
@@ -98,7 +101,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
     # Adding data to DB
     db.user_reporter.load_user_reports_to_db(
-        db_conn, volume_user_reports, usernames, user_groups, logger)
+        db_conn, volume_user_reports, usernames, user_groups, wrstat_dates, logger)
 
     # Creating TSV of data
     utils.tsv.create_tsv_user_report(
