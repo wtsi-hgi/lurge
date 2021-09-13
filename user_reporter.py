@@ -39,7 +39,7 @@ def get_user_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultD
     }
 
     In a UserReport object, size and mtime are DefaultDict[group id (str), value (int/date)]
-    
+
     """
     report_path = utils.finder.findReport(
         f"scratch{volume}", WRSTAT_DIR, logger

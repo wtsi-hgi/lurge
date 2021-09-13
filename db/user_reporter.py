@@ -1,4 +1,5 @@
 import datetime
+import db.foreign
 import logging
 from lurge_types.user import UserReport
 import typing as T
@@ -18,31 +19,7 @@ def load_user_reports_to_db(
 
     # First, we'll get all the foreign keys
 
-    # Groups
-    # We don't care if they're part of HumGen or not, so we'll just assume they are
-    cursor.execute(
-        "SELECT group_id, group_name FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
-    group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    groups: T.Dict[str, int] = {}
-    for group_id, group_name in group_results:
-        groups[group_name] = group_id
-
-    # Volumes
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
-    volume_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    volumes: T.Dict[str, int] = {}
-    for volume_id, volume_name in volume_results:
-        volumes[volume_name] = volume_id
-
-    # Users
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.user")
-    user_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    users: T.Dict[str, int] = {}
-    for user_id, user_name in user_results:
-        users[user_name] = user_id
+    _, groups, volumes, _, users = db.foreign(conn)
 
     # Now, we'll go through every record (just like in the TSV generator) and
     # add a DB record for all of them

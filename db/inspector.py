@@ -4,6 +4,7 @@ import typing as T
 
 import mysql.connector
 
+import db.foreign
 from utils import finder
 from lurge_types.directory_report import DirectoryReport
 
@@ -35,33 +36,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
     # First, get all the foreign keys for PIs, Volumes and Groups
     # We'll also add any that don't exist later
-
-    # PI
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.pi")
-    pi_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    pis: T.Dict[str, int] = {}
-    for (pi_id, pi_name) in pi_results:
-        pis[pi_name] = pi_id
-
-    # Groups
-    # Unlike in the report, we don't care about if they're part of HumGen or not,
-    # so we'll just assume they are. It doesn't matter
-    cursor.execute(
-        "SELECT group_id, group_name FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
-    group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    groups: T.Dict[str, int] = {}
-    for (group_id, group_name) in group_results:
-        groups[group_name] = group_id
-
-    # Volumes
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
-    volume_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    volumes: T.Dict[str, int] = {}
-    for (volume_id, volume_name) in volume_results:
-        volumes[volume_name] = volume_id
+    pis, groups, volumes, _, _ = db.foreign.get_db_foreign_keys(db_conn)
 
     # Now, we'll go onto the above plan
 

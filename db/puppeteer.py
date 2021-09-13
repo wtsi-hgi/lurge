@@ -6,6 +6,8 @@ from lurge_types.vault import VaultPuppet
 
 import mysql.connector
 
+import db.foreign
+
 
 def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger) -> None:
     logger.info("Writing results to MySQL database")
@@ -17,31 +19,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
     # ACTIONS WILL NOT BE ADDED LATER
     # We only care about those already in the DB
 
-    # Groups
-    # We don't care if they're part of HumGen or not, so we'll just assume they are
-    cursor.execute(
-        "SELECT group_id, group_name FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
-    group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    groups: T.Dict[str, int] = {}
-    for group_id, group_name in group_results:
-        groups[group_name] = group_id
-
-    # Volumes
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
-    volume_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    volumes: T.Dict[str, int] = {}
-    for volume_id, volume_name in volume_results:
-        volumes[volume_name] = volume_id
-
-    # Vault Actions
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.vault_actions")
-    action_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
-
-    actions: T.Dict[str, int] = {}
-    for action_id, action_name in action_results:
-        actions[action_name] = action_id
+    _, groups, volumes, actions, _ = db.foreign.get_db_foreign_keys(conn)
 
     # Now, we're going to go through all the VaultReports and add each as a DB record
     for volume, reports in vault_reports:

@@ -6,6 +6,8 @@ import typing as T
 
 import mysql.connector
 
+import db.foreign
+
 
 def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector.MySQLConnection, tables: T.List[str], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger):
     """
@@ -20,31 +22,8 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
     sql_cursor = sql_db.cursor()
 
     # First, get foreign keys from the MySQL database for PI, Volume and Unix Group
-    # We'll also have to add any that don't exist
-
-    # PI
-    sql_cursor.execute("SELECT * FROM hgi_lustre_usage_new.pi")
-    pi_results: T.List[T.Tuple[int, str]] = sql_cursor.fetchall()
-
-    pis: T.Dict[str, int] = {}
-    for (pi_id, pi_name) in pi_results:
-        pis[pi_name] = pi_id
-
-    # Unixgroups
-    sql_cursor.execute("SELECT * FROM hgi_lustre_usage_new.unix_group")
-    group_results: T.List[T.Tuple[int, str, int]] = sql_cursor.fetchall()
-
-    groups: defaultdict[str, dict[int, int]] = defaultdict(dict)
-    for (group_id, group_name, isHumgen) in group_results:
-        groups[group_name][isHumgen] = group_id
-
-    # Volumes
-    sql_cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
-    volume_results: T.List[T.Tuple[int, str]] = sql_cursor.fetchall()
-
-    volumes: T.Dict[str, int] = {}
-    for (volume_id, volume_name) in volume_results:
-        volumes[volume_name] = volume_id
+    pis, groups, volumes, _, _ = db.foreign.get_db_foreign_keys(
+        sql_db, humgen_only=False)
 
     # Then, we can go over all the data from the tmp_db and put it into the main db
 

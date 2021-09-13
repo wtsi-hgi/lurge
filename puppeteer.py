@@ -45,7 +45,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 mtime: "2021-09-01"
             }
         }
-    
+
     """
     report_path = utils.finder.findReport(
         f"scratch{volume}", WRSTAT_DIR, logger)
