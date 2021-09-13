@@ -21,7 +21,32 @@ from directory_config import VOLUMES, WRSTAT_DIR, LOGGING_CONFIG
 # because its the only other Metallica song I know
 
 
-def processVault(volume: int, logger: logging.Logger) -> T.Dict[str, VaultPuppet]:
+def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, T.Dict[str, VaultPuppet]]:
+    """Reads a wrstat file, and returns information about the files in there that
+    are getting tracked by Vault
+
+    :param volume: - Which volume we're going to be looking for a wrstat report for
+    :param logger: - A logging.Logger object to log to
+
+    :returns: volume (int), master_of_puppets (dict[inode (str), file_info (VaultPuppet)])
+
+    example:
+        123,  {
+            "inode12345": VaultPuppet{
+                full_path: "/lustre/scratch123/teams/hgi/projectabc/file_xyz",
+                state: "Keep",
+                _size: 1000,
+                size: "1KiB",
+                _owner_id: "123",
+                owner: "owner12",
+                _group_id: "678",
+                group: "team321",
+                _mtime: datetime.date(2021, 09, 01),
+                mtime: "2021-09-01"
+            }
+        }
+    
+    """
     report_path = utils.finder.findReport(
         f"scratch{volume}", WRSTAT_DIR, logger)
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
@@ -143,7 +168,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
     with multiprocessing.Pool(processes=max(len(volumes), 1)) as pool:
         vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]] = pool.starmap(
-            processVault, zip(volumes_to_check, repeat(logger)))
+            get_vaults_from_wrstat, zip(volumes_to_check, repeat(logger)))
 
     # Write to MySQL database
     db.puppeteer.write_to_db(db_conn, vault_reports, wrstat_dates, logger)

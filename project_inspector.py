@@ -28,12 +28,30 @@ VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
 PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
 
 
-def create_mapping(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int, logger: logging.Logger) -> T.Dict[str, T.Any]:
-    """Returns a dictionary mapping paths to objects of properties
+def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int, logger: logging.Logger) -> T.Dict[str, DirectoryReport]:
+    """Processes a wrstat file and gives us the detailed directory info
 
-    @param path - List of paths to root directories to scan from
-    @param names - Tuple of dictionaries mapping group IDs to the group name and PI
-    @param depth - How many levels below the root to scan
+    :param path: - List of paths to root directories to scan from
+    :param names: - Tuple of dictionaries mapping group IDs to the group name and PI
+    :param depth: - How many levels below the root to scan
+    :param logger: - A logging.Logger object to log to
+
+    :returns: Dict[directory path (str), directory information (DirectoryReport)]
+    example:
+        {
+            "/lustre/scratch123/teams/hgi/project_abc": DirectoryReport{
+                size: 12345,
+                bam: 0,
+                cram: 0,
+                vcf: 100,
+                pedbed: 0,
+                num_files = 5600,
+                mtime = 1631019126,
+                pi = "PI Name",
+                group_name = "Group Name",
+                scratch_disk = "/lustre/scratch123"
+            }
+        }
     """
 
     humgen_pis, humgen_groups = names
@@ -222,7 +240,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
     if path is None:
         with multiprocessing.Pool() as pool:
             mappings = pool.starmap(
-                create_mapping,
+                get_directory_info_from_wrstat,
                 zip(
                     ALL_PROJECTS.values(),
                     repeat(humgen_names),
@@ -237,7 +255,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
     else:
         volume = path.split("/")[1][-3:]
-        directories_info[volume] = create_mapping(
+        directories_info[volume] = get_directory_info_from_wrstat(
             [path], humgen_names, depth)
 
     if tosql:

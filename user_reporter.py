@@ -18,7 +18,29 @@ import utils.tsv
 import db_config as config
 
 
-def process_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
+def get_user_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
+    """Reads a wrstat file for a volume, and collates the information by user and group
+
+    :param volume: - which volume we're going to look for the wrstat report for
+    :param logger: - logging.Logger object to log to
+
+    :returns: DefaultDict[user_id (str), UserReport]
+
+    Example:
+    {
+        "uid123456": UserReport{
+            size: DefaultDict{
+                "group_id123": 4000
+            },
+            _mtime: DefaultDict{
+                "group_id123": datetime.date(2021, 09, 01)
+            }
+        }
+    }
+
+    In a UserReport object, size and mtime are DefaultDict[group id (str), value (int/date)]
+    
+    """
     report_path = utils.finder.findReport(
         f"scratch{volume}", WRSTAT_DIR, logger
     )
@@ -73,7 +95,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
             wrstat_dates[volume] = wr_date
 
     with multiprocessing.Pool(processes=max(len(volumes_to_check), 1)) as pool:
-        user_reports = pool.starmap(process_wrstat, zip(
+        user_reports = pool.starmap(get_user_info_from_wrstat, zip(
             volumes_to_check, repeat(logger)
         ))
 
@@ -94,8 +116,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         user_groups[str(uid)] = set([(groups[key], key)
                                      if key in groups else ("-", key)
                                      for vol in user_reports
-                                     for (user, rep) in vol.items()
-                                     for key in list(rep.size.keys())
+                                     for (user, report) in vol.items()
+                                     for key in list(report.size.keys())
                                      if user == str(uid)
                                      ])
 

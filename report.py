@@ -37,12 +37,18 @@ def scanDirectory(directory: str) -> T.Optional[str]:
     return None
 
 
-def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
+def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     """
     Processes a single wrstat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
 
     :param wr_file: File name of wrstat output file to process
+    :param logger: logging.Logger object to log to
+
+    :returns: volume (str), group_data (List[Tuple[Any...]])
+    Example:
+        "scratch123", [(gidNumber, groupName, PI, usage, volume,
+                        lastModified, quota, archivedDirs, isHumgen), ...] 
     """
 
     tmp_db = sqlite3.connect(DATABASE_NAME)
@@ -61,7 +67,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
 
         # lastmodified is in Unix time and will be converted to "days since
         # last modification" later
-        groups[str(gid)] = {'groupName': groupName, 'PIname': PIname, 'volumeSize': 0,
+        groups[str(gid)] = {'groupName': groupName, 'PIname': PIname, 'usage': 0,
                             'lastModified': 0, 'volume': volume, 'isHumgen': True}
 
     # lazily reads the wrstat file without unzipping the whole thing first
@@ -86,7 +92,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
             gid = line[3]
             try:
                 try:
-                    groups[gid]['volumeSize'] += int(
+                    groups[gid]['usage'] += int(
                         int(line[1]) / int(line[9]))
                 except ZeroDivisionError:
                     # This should almost never happen, but it did! Looks like a
@@ -109,7 +115,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
                 # its name will be found later
                 try:
                     groups[gid] = {'groupName': None, 'PIname': None,
-                                   'volumeSize': int(line[1]), 'lastModified': int(line[5]),
+                                   'usage': int(line[1]), 'lastModified': int(line[5]),
                                    'volume': volume, 'isHumgen': False}
                 except IndexError:
                     continue
@@ -141,7 +147,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
                 continue
 
         PI = groups[gid]['PIname']
-        volumeSize = groups[gid]['volumeSize']
+        usage = groups[gid]['usage']
         lastModified_unix = groups[gid]['lastModified']
         isHumgen = groups[gid]['isHumgen']
         # wrstat_date_unix - lastModified_unix is the seconds since last
@@ -163,7 +169,7 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
         archivedDirs = None
         # only check whether a volume is archived if it's smaller than 100MiB,
         # any larger than that and it's very likely to still be in use
-        if (volumeSize < 100*1024**2):
+        if (usage < 100*1024**2):
             try:
                 archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
                                              groupName)
@@ -177,11 +183,11 @@ def process_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[
                                                  groupName)
                 except FileNotFoundError:
                     pass
-        if (volumeSize == 0 and lastModified_unix == 0):
+        if (usage == 0 and lastModified_unix == 0):
             # not a useful entry, ignore it
             pass
         else:
-            group_data.append((gidNumber, groupName, PI, volumeSize, volume,
+            group_data.append((gidNumber, groupName, PI, usage, volume,
                               lastModified, quota, archivedDirs, isHumgen))
 
     logger.info("Processed data for {}.".format(volume))
@@ -250,7 +256,7 @@ def main() -> None:
     # distribute input files to processes running instances of process_wrstat()
     try:
         with multiprocessing.Pool(processes=max(len(wrstat_files), 1)) as pool:
-            wr_data = pool.starmap(process_wrstat, zip(
+            wr_data = pool.starmap(get_group_data_from_wrstat, zip(
                 wrstat_files, repeat(logger)))
     except Exception as e:
         sql_db.close()
@@ -265,13 +271,13 @@ def main() -> None:
 
     logger.info("adding data to temporary database")
     for entry in group_data:
-        (gidNumber, groupName, PI, volumeSize, volume, lastModified,
+        (gidNumber, groupName, PI, usage, volume, lastModified,
          quota, archivedDirs, isHumgen) = entry
         db_cursor.execute("""INSERT INTO {} (gidNumber, groupName, PI,
                     volumeSize, volume, lastModified, quota, archivedDirs, isHumgen)
                     VALUES (?,?,?,?,?,?,?,?,?)""".format(volume),
                           (gidNumber, groupName,
-                           PI, volumeSize, volume, lastModified, quota,
+                           PI, usage, volume, lastModified, quota,
                            archivedDirs, isHumgen)
                           )
 
