@@ -43,9 +43,9 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
                     pi = pis[pi_name]
                 except KeyError:
                     sql_cursor.execute(
-                        f"INSERT INTO {SCHEMA}.pi (pi_name) VALUES (?);", pi_name)
+                        f"INSERT INTO {SCHEMA}.pi (pi_name) VALUES (%s);", (pi_name,))
                     sql_cursor.execute(
-                        f"SELECT pi_id FROM {SCHEMA}.pi WHERE pi_name = %s", pi_name)
+                        f"SELECT pi_id FROM {SCHEMA}.pi WHERE pi_name = %s", (pi_name,))
                     (pi,) = sql_cursor.fetchone()
                     pis[pi_name] = pi
             else:
@@ -61,9 +61,9 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
 
             if volume not in volumes:
                 sql_cursor.execute(
-                    f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", volume)
+                    f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", (volume,))
                 sql_cursor.execute(
-                    f"SELECT volume_id FROM {SCHEMA}.volume WHERE scratch_disk = %s;", volume)
+                    f"SELECT volume_id FROM {SCHEMA}.volume WHERE scratch_disk = %s;", (volume,))
                 (volume_id,) = sql_cursor.fetchone()
                 volumes[volume] = volume_id
 
