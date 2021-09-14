@@ -1,140 +1,30 @@
-import mysql.connector
+from itertools import repeat
 import os
-import re
 import datetime
-import csv
 import subprocess
+import logging
 import multiprocessing
 import sqlite3
-import base64
-import ldap
 import gzip
 import sys
-# importing report_config.py file, not a library
-import report_config as config
+import typing as T
 
-# This script should be executed by reportmanager.sh. If you want to run it
-# directly, you need to execute it like so:
-# python3 report.py [date] [filename list]
-# [date] needs to be an ISO date string (ie, "2019-09-21")
-# [filename list] needs to be a list of mpistat output files
-# (ie, latest-119.dat.gz latest-118.dat.gz etc)
+import ldap
 
-# full path and filename of the SQLite database each process will access.
-# Shouldn't really ever be changed, but it's here in case Lustre changes
-DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/_lurge_tmp_sqlite.db"
-# report directory where the lastest mpistat output file can be found
-# and where the report file will be placed
-REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/"
+import db.common
+import db.report
+import utils.finder
+import utils.ldap
+import utils.tsv
 
-def checkReportDate(sql_db, date):
+import db_config as config
+
+from directory_config import DATABASE_NAME, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
+
+
+def scanDirectory(directory: str) -> T.Optional[str]:
     """
-    Checks the dates in the MySQL database, and stops the program if date 'date'
-    is already recorded.
-
-    :param sql_db: MySQL connection to check for reports
-    :param date: The date of the report to be produced
-    """
-    sql_cursor = sql_db.cursor()
-    sql_cursor.execute("""SELECT DISTINCT `date` FROM lustre_usage""")
-
-    for result in sql_cursor:
-        if (date == result):
-            global DATABASE_NAME
-            os.remove(DATABASE_NAME)
-            exit("Report for date {} already found in MySQL database! \
-                Exiting.".format(date))
-
-def getSQLConnection():
-    # connects to the MySQL server used to store the report data, change the
-    # credentials here to point at your desired database
-    if (config.PORT == None):
-        port = 3306 # if port is not set, set it to default
-    else:
-        port = config.PORT
-
-    db_con = mysql.connector.connect(
-        host=config.HOST,
-        database=config.DATABASE,
-        port = port,
-        user=config.USER,
-        passwd=config.PASSWORD
-    )
-
-    return db_con
-
-def getLDAPConnection():
-    con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
-    # Sanger internal LDAP is public so no credentials needed
-    con.bind("","")
-
-    return con
-
-def findGroups(ldap_con, tmp_db):
-    """
-    Finds Humgen groups using LDAP and writes the group ID number, group name,
-    and corresponding PI's surname to table 'group_table' in tmp_db.
-
-    :param ldap_con: LDAP connection to use for queries
-    :param tmp_db: SQLite database connection object to write 'group_table' to
-    """
-
-    results = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-        ['cn', 'gidNumber', 'sangerProjectPI'])
-
-    db_cursor = tmp_db.cursor()
-    # cn = groupName, sangerProjectPI['uid'] = PI's user id
-    db_cursor.execute('''CREATE TABLE group_table(gidNumber INTEGER PRIMARY KEY,
-        groupName TEXT, PI TEXT)''')
-    tmp_db.commit()
-
-    # used to collect every PI uid that needs to be resolved, use of set means
-    # that duplicate uids are ignored
-    PIuids = set()
-
-    for item in results:
-        # gidNumber is stored as a byte-encoded string in results
-        gidNumber = int( item[1]['gidNumber'][0].decode('UTF-8') )
-        groupName = item[1]['cn'][0].decode('UTF-8')
-
-        # not all groups have a PI, KeyError thrown in those cases
-        try:
-            # string in the form 'uid=[xyz],ou=people,dc=sanger,dc=ac,dc=uk'
-            # we want just [xyz]
-            PIdn = item[1]['sangerProjectPI'][0].decode('UTF-8')
-
-            # first split = 'uid=[xyz]'
-            # second split = '[xyz]'
-            PIuid = PIdn.split(',')[0].split('=')[1]
-            PIuids.add( PIuid )
-        except KeyError:
-            # nothing to do except skip the PI related code
-            PIuid = None
-
-        db_cursor.execute('''INSERT INTO group_table(gidNumber, groupName, PI)
-            VALUES(?,?,?)''', (gidNumber, groupName, PIuid))
-
-    # write all prior INSERTs to table in one transaction
-    tmp_db.commit()
-
-    # replaces uids in group_table with full surnames of the corresponding PI
-    for uid in PIuids:
-        surname_result = ldap_con.search_s("ou=people,dc=sanger,dc=ac,dc=uk",
-            ldap.SCOPE_ONELEVEL, "(uid={})".format(uid), ['sn'])
-
-        surname = surname_result[0][1]['sn'][0].decode('UTF-8')
-
-        db_cursor.execute('''UPDATE group_table SET PI = ? WHERE PI = ?''',
-            (surname, uid))
-
-    # write prior UPDATEs to table, nothing needs returning
-    tmp_db.commit()
-    print("Created table of Humgen Unix groups.")
-
-def scanDirectory(directory):
-    """
-    processMpistat helper function. Scans 'directory' for .imirrored, and returns
+    process_wrstat helper function. Scans 'directory' for .imirrored, and returns
     the directory if it was found and None otherwise.
 
     :param directory: Directory to scan
@@ -146,115 +36,109 @@ def scanDirectory(directory):
 
     return None
 
-def processMpistat(mpi_file):
+
+def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
     """
-    Processes a single mpistat output file and writes a table of results to
+    Processes a single wrstat output file and writes a table of results to
     SQLite. Intended to be ran multiple times concurrently for multiple files.
 
-    :param mpi_file: File name of mpistat output file to process
+    :param wr_file: File name of wrstat output file to process
+    :param logger: logging.Logger object to log to
+
+    :returns: volume (str), group_data (List[Tuple[Any...]])
+    Example:
+        "scratch123", [(gidNumber, groupName, PI, usage, volume,
+                        lastModified, quota, archivedDirs, isHumgen), ...] 
     """
-    global DATABASE_NAME
+
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
     db_cursor = tmp_db.cursor()
     db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
+    result = db_cursor.fetchall()
 
-    global REPORT_DIR
-    # reads first line of the mpistat file to establish the scratch volume
-    with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
-        # each line is a whitespace separated list of fields, the first element
-        # is the directory
-        b64_directory = mpi_text.readline().split()[0]
-        # b64_directory is a base64 encoded string '/lustre/scratch[XYZ]'
-        directory = base64.b64decode(b64_directory).decode("UTF-8")
-        # gets the last element of the directory, ie "scratch[XYZ]"
-        volume = directory.split("/")[-1]
+    volume = wr_file.split('/')[-1].split('.')[0].split('_')[1]
 
-    groups = {}
-    for row in db_cursor:
+    groups: T.Dict[str, T.Dict[str, T.Any]] = {}
+    for row in result:
         # rearranging into a more usable format, since each row is in the
         # form (gid, "groupname", "PIname")
         gid, groupName, PIname = row
 
         # lastmodified is in Unix time and will be converted to "days since
         # last modification" later
-        groups[str(gid)] = {'groupName':groupName, 'PIname':PIname, 'volumeSize':0,
-            'lastModified':0, 'volume':volume, 'isHumgen':True}
+        groups[str(gid)] = {'groupName': groupName, 'PIname': PIname, 'usage': 0,
+                            'lastModified': 0, 'volume': volume, 'isHumgen': True}
 
-    # lazily reads the mpistat file without unzipping the whole thing first
-    starttime = datetime.datetime.now()
+    # lazily reads the wrstat file without unzipping the whole thing first
     lines_processed = 0
-    print("Opening {} for reading...".format(mpi_file))
-    # directories with group directories to scan for .imirrored
-    group_directories = {
-        'scratch114':["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
-        'scratch115':["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
-        'scratch118':["/lustre/scratch118/humgen/old-team-data/",
-            "/lustre/scratch118/humgen/hgi/projects/"],
-        'scratch119':["/lustre/scratch119/humgen/teams",
-            "/lustre/scratch119/humgen/projects/"]
-        }
-    with gzip.open(REPORT_DIR+mpi_file, 'rt') as mpi_text:
-        # each line in the mpistat file has the following whitespace separated
+    logger.info("Opening {} for reading...".format(wr_file))
+
+    with gzip.open(wr_file, 'rt') as wr_text:
+        # each line in the wrstat file has the following whitespace separated
         # fields:
         # base64 encoded path, file size, owner uid, owner gid, last access time,
         # last modification time, last status change time, object type (file,
         # directory or link), inode number, number of links, device id
-        for line in mpi_text:
+        for line in wr_text:
 
             # print out progress report every ~30 seconds
-            if (datetime.datetime.now() - starttime).seconds > 30:
-                starttime = datetime.datetime.now()
-                print("{:%H:%M:%S}: {} records processed for {}".format(
-                    starttime, lines_processed, volume))
+            if lines_processed % 5000000 == 0:
+                logger.debug(
+                    f"{lines_processed} records processed for {volume}")
 
             line = line.split()
 
             gid = line[3]
             try:
                 try:
-                    groups[gid]['volumeSize'] += int( int(line[1]) / int(line[9]) )
+                    groups[gid]['usage'] += int(
+                        int(line[1]) / int(line[9]))
                 except ZeroDivisionError:
                     # This should almost never happen, but it did! Looks like a
                     # file can get 'stat'ed in the middle of being deleted,
                     # which makes it show a hard link count of 0.
                     pass
 
-                # only update the group's last edit time if it's more recent
-                if (int(line[5]) > groups[gid]['lastModified']):
-                    # make sure the timestamp isn't in the future
-                    now = datetime.datetime.now()
-                    now_unix = int( datetime.datetime.timestamp(now) )
-                    if(now_unix > int(line[5])):
-                        groups[gid]['lastModified'] = int(line[5])
+                try:
+                    # only update the group's last edit time if it's more recent
+                    if (int(line[5]) > groups[gid]['lastModified']):
+                        # make sure the timestamp isn't in the future
+                        now = datetime.datetime.now()
+                        now_unix = int(datetime.datetime.timestamp(now))
+                        if(now_unix > int(line[5])):
+                            groups[gid]['lastModified'] = int(line[5])
+                except ValueError:
+                    continue
             except KeyError:
                 # the first time the group appears, add it to the dictionary
                 # its name will be found later
-                groups[gid] = {'groupName':None, 'PIname':None,
-                    'volumeSize':int(line[1]), 'lastModified':int(line[5]),
-                    'volume':volume, 'isHumgen':False}
+                try:
+                    groups[gid] = {'groupName': None, 'PIname': None,
+                                   'usage': int(line[1]), 'lastModified': int(line[5]),
+                                   'volume': volume, 'isHumgen': False}
+                except IndexError:
+                    continue
 
             lines_processed += 1
 
-    # creates new table named after the volume being analysed (ie, scratch114)
-    db_cursor.execute('''CREATE TABLE {} (gidNumber INTEGER PRIMARY KEY,
-        groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
-        lastModified INTEGER, quota INTEGER, consumption TEXT,
-        archivedDirs TEXT, isHumgen INTEGER)'''.format(volume))
-
-    # gets the Unix timestamp of when the mpistat file was created
+    # gets the Unix timestamp of when the wrstat file was created
     # int() truncates away the sub-second measurements
-    mpistat_date_unix = int(os.stat(REPORT_DIR+mpi_file).st_mtime)
+    wrstat_date_unix = int(os.stat(wr_file).st_mtime)
+    group_data: T.List[T.Tuple[T.Any, ...]] = []
     for gid in groups:
         gidNumber = gid
-        groupName = groups[gid]['groupName']
+        groupName: str = groups[gid]['groupName']
 
-        # updates the group names for groups discovered during mpistat crawl
+        # updates the group names for groups discovered during wrstat crawl
         if (groupName == None):
             # connection times out too quickly to be declared elsewhere
-            ldap_con = getLDAPConnection()
-            result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+            ldap_con = utils.ldap.getLDAPConnection()
+            try:
+                result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+                                           ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+            except ValueError:
+                continue
             try:
                 groupName = result[0][1]['cn'][0].decode('UTF-8')
             except IndexError:
@@ -263,211 +147,159 @@ def processMpistat(mpi_file):
                 continue
 
         PI = groups[gid]['PIname']
-        volumeSize = groups[gid]['volumeSize']
+        usage = groups[gid]['usage']
         lastModified_unix = groups[gid]['lastModified']
         isHumgen = groups[gid]['isHumgen']
-        # mpistat_date_unix - lastModified_unix is the seconds since last
-        # modification relative to when the mpistat file was produced
+        # wrstat_date_unix - lastModified_unix is the seconds since last
+        # modification relative to when the wrstat file was produced
         # divided by 86400 (seconds in a day) to find day difference
-        lastModified = round((mpistat_date_unix - lastModified_unix)/86400 , 1)
+        lastModified = round((wrstat_date_unix - lastModified_unix)/86400, 1)
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
         # needs to be multiplied by 1024
         try:
             quota = int(subprocess.check_output(["lfs", "quota", "-gq", groupName,
-                "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
+                                                 "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
         except subprocess.CalledProcessError:
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error
             quota = None
 
-        TEBI = 1024**4 # bytes in a tebibyte
-        if quota is not None:
-            try:
-                consumption = "{} TiB of {} TiB ({}%)".format(
-                    round(volumeSize/TEBI, 1), round(quota/TEBI, 1),
-                    round(volumeSize/quota * 100, 1))
-            except ZeroDivisionError:
-                # this happens sometimes, when quota is 0
-                consumption = "{} TiB (Unlimited)".format(
-                    round(volumeSize/TEBI, 1))
-        else:
-            consumption = "{} TiB".format(round(volumeSize/TEBI, 1))
-
         archivedDirs = None
         # only check whether a volume is archived if it's smaller than 100MiB,
         # any larger than that and it's very likely to still be in use
-        if (volumeSize < 100*1024**2):
+        if (usage < 100*1024**2):
             try:
-                archivedDirs = scanDirectory(group_directories[volume][0] +
-                    groupName)
+                archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
+                                             groupName)
             except FileNotFoundError:
                 pass
 
             # only test the next directory if .imirrored wasn't already found
             if archivedDirs is None:
                 try:
-                    archivedDirs = scanDirectory(group_directories[volume][1] +
-                        groupName)
+                    archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
+                                                 groupName)
                 except FileNotFoundError:
                     pass
-        if (volumeSize == 0 and lastModified_unix == 0):
+        if (usage == 0 and lastModified_unix == 0):
             # not a useful entry, ignore it
             pass
         else:
-            db_cursor.execute('''INSERT INTO {}(gidNumber, groupName, PI,
-                volumeSize, volume, lastModified, quota, consumption, archivedDirs, isHumgen)
-                VALUES (?,?,?,?,?,?,?,?,?,?)'''.format(volume), (gidNumber, groupName,
-                PI, volumeSize, volume, lastModified, quota, consumption,
-                archivedDirs, isHumgen))
-            tmp_db.commit()
+            group_data.append((gidNumber, groupName, PI, usage, volume,
+                              lastModified, quota, archivedDirs, isHumgen))
 
-    print("Processed data for {}.".format(volume))
+    logger.info("Processed data for {}.".format(volume))
 
-    return volume
+    return (volume, group_data)
 
-def loadIntoMySQL(tmp_db, sql_db, tables, date):
-    """
-    Reads the contents of tables in tmp_db and writes them to a MySQL database.
 
-    :param tmp_db: SQLite database in which tables are stored
-    :param sql_db: MySQL database into which to write data
-    :param tables: List of table names to read
-    :param date: Date string to label the data (ie, "2019-09-20")
-    """
-    tmp_cursor = tmp_db.cursor()
-    sql_cursor = sql_db.cursor()
-
-    # iterates over each row in each SQLite table, and just moves the data over
-    # into a single MySQL table
-    for table in tables:
-        print("Inserting data for {}...".format(table))
-        tmp_cursor.execute('''SELECT volume, PI, groupName, volumeSize, quota,
-            consumption, lastModified, archivedDirs, isHumgen FROM {}
-            ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
-        for row in tmp_cursor:
-            # row elements are ordered like the column names in the select,
-            # ie 'volume' is always row[0]
-            instruction = '''INSERT INTO lustre_usage (`Lustre Volume`,
-                `PI`, `Unix Group`, `Used (bytes)`, `Quota (bytes)`, `Consumption`,
-                `Last Modified (days)`, `Archived Directories`, `IsHumgen`, `date`)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
-            # creates single data tuple from existing row tuple and singleton
-            # date tuple, plain variables can't be concatenated to tuples
-            data = row + (date,)
-
-            sql_cursor.execute(instruction, data)
-
-    sql_db.commit()
-    print("Report data for {} loaded into MySQL.".format(date))
-
-def createTsvReport(tmp_db, tables, date):
-    """
-    Reads the contents of tables in tmp_db and writes them to a .tsv formatted
-    file.
-
-    :param tmp_db: SQLite database from which to fetch data
-    :param tables: List of table names to read
-    :param date: Date string of the data to be used (ie, "2019-09-20")
-    """
-    # sets filename to 'report-YYYYMMDD.tsv'
-    name = "report-{}.tsv".format(date.replace("-", ""))
+def generate_tables(tmp_db: sqlite3.Connection, logger: logging.Logger):
+    # Create the temporary sqlite database tables
     db_cursor = tmp_db.cursor()
+    for vol in VOLUMES:
+        logger.info(f"Creating table scratch{vol}")
+        db_cursor.execute(f"""
+            CREATE TABLE scratch{vol} (gidNumber INTEGER PRIMARY KEY,
+            groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
+            lastModified INTEGER, quota INTEGER,
+            archivedDirs TEXT, isHumgen INTEGER)
+        """)
+        tmp_db.commit()
+    logger.info("created tables")
 
-    global REPORT_DIR
-    with open(REPORT_DIR+"report-output-files/"+name, "w", newline="") as reportfile:
-        # start a writer that will format the file as tab-separated
-        report_writer = csv.writer(reportfile, delimiter="\t",
-            quoting = csv.QUOTE_NONE)
-        # write column headers
-        report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
-            "Used (bytes)", "Quota (bytes)", "Consumption",
-            "Last Modified (days)", "Archived Directories", "Is Humgen?"])
 
-        for table in tables:
-            print("Inserting data for {}...".format(table))
-            db_cursor.execute('''SELECT volume, PI, groupName, volumeSize,
-                quota, consumption, lastModified, archivedDirs, isHumgen FROM {}
-                ORDER BY volume ASC, PI ASC, groupName ASC'''.format(table))
-            for row in db_cursor:
-                # row elements are ordered like the column names in the select
-                # statement
-
-                # replace elements with no value with "-"
-                data = ["-" if x==None else x for x in row]
-                # replace SQLite 1/0 Booleans with True/False
-                if data[-1] == 0:
-                    data[-1] = False
-                else:
-                    data[-1] = True
-
-                report_writer.writerow(data)
-
-    print("{} created.".format(name))
-
-if __name__ == "__main__":
-    # ignore first argument (the name of the script)
-    # second argument is the date, all other arguments are file names
-    date = sys.argv[1]
-    mpistat_files = sys.argv[2:]
-
-    # checks if 'date' is formatted correctly
-    if re.search("\d\d\d\d-\d\d-\d\d", date) is None:
-        exit("Date formatting invalid, YYYY-MM-DD expected! Exiting.")
+def main() -> None:
+    logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
+    logger = logging.getLogger(__name__)
 
     # temporary SQLite database used to organise data
     tmp_db = sqlite3.connect(DATABASE_NAME)
 
-    print("Establishing MySQL connection...")
-    sql_db = getSQLConnection()
+    logger.info("Establishing MySQL connection...")
+    sql_db = db.common.getSQLConnection(config)
 
-    checkReportDate(sql_db, date)
+    # Finding most recent wrstat files for each volume
+    # We only care if the most recent wrstat file isn't already in the database
+    wrstat_files: T.List[str] = []
+    wrstat_dates: T.Dict[int, datetime.date] = {}
 
-    print("Establishing LDAP connection...")
-    ldap_con = getLDAPConnection()
+    for volume in VOLUMES:
+        latest_wr = utils.finder.findReport(
+            f"scratch{volume}", WRSTAT_DIR, logger)
+        wr_date_str = latest_wr.split("/")[-1].split("_")[0]
+        wr_date = datetime.date(int(wr_date_str[:4]), int(
+            wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-    print("Collecting group information...")
-    findGroups(ldap_con, tmp_db)
+        if not db.common.check_date(sql_db, "lustre_usage", wr_date, volume, logger):
+            wrstat_files.append(latest_wr)
+            wrstat_dates[volume] = wr_date
 
-    # creates a process pool which will concurrently execute 4 processes
-    # NOTE: If resources permit, change this to the number of mpistat files
-    # that are going to be processed
-	# Make sure to change the bsub script to ask for more cores too
-    pool = multiprocessing.Pool(processes=4)
+    logger.info("Establishing LDAP connection...")
+    ldap_con = utils.ldap.getLDAPConnection()
 
-    print("Starting mpistat processors...")
+    logger.info("Collecting group information...")
+    utils.ldap.add_humgen_ldap_to_db(ldap_con, tmp_db)
+
+    # Create the tables in the temporary DB
+    generate_tables(tmp_db, logger)
+
+    logger.info("Starting wrstat processors...")
     # sorts file list alphabetically, so that the volumes are in the same order
     # regardless of how the script arguments are given. This is useful for
     # having an ordered multiprocess output later.
-    mpistat_files.sort()
+    wrstat_files.sort()
 
-    # distribute input files to processes running instances of processMpistat()
+    # creates a process pool which will concurrently execute 5 processes
+    # to read each wrstat file
+    # distribute input files to processes running instances of process_wrstat()
     try:
-        tables = pool.map(processMpistat, mpistat_files)
-        pool.close()
-        pool.join()
+        with multiprocessing.Pool(processes=max(len(wrstat_files), 1)) as pool:
+            wr_data = pool.starmap(get_group_data_from_wrstat, zip(
+                wrstat_files, repeat(logger)))
     except Exception as e:
         sql_db.close()
         tmp_db.close()
         os.remove(DATABASE_NAME)
         raise e
 
-    # finds the last modified date of some mpistat file
-    date_unix = datetime.datetime.utcfromtimestamp( int(os.stat(
-        REPORT_DIR+mpistat_files[0]).st_mtime) )
+    tables = [x[0] for x in wr_data]
+    group_data = [x for y in wr_data for x in y[1]]
 
-    date = "{0:%Y-%m-%d}".format(date_unix)
+    db_cursor = tmp_db.cursor()
 
-    print("Transferring report data to MySQL database...")
-    loadIntoMySQL(tmp_db, sql_db, tables, date)
+    logger.info("adding data to temporary database")
+    for entry in group_data:
+        (gidNumber, groupName, PI, usage, volume, lastModified,
+         quota, archivedDirs, isHumgen) = entry
+        db_cursor.execute("""INSERT INTO {} (gidNumber, groupName, PI,
+                    volumeSize, volume, lastModified, quota, archivedDirs, isHumgen)
+                    VALUES (?,?,?,?,?,?,?,?,?)""".format(volume),
+                          (gidNumber, groupName,
+                           PI, usage, volume, lastModified, quota,
+                           archivedDirs, isHumgen)
+                          )
 
-    print("Writing report data to .tsv file...")
-    createTsvReport(tmp_db, tables, date)
+    tmp_db.commit()
+    logger.info("added data to temporary database")
 
-    print("Cleaning up...")
+    date = datetime.date.today().strftime("%Y-%m-%d")
+
+    logger.info("Transferring report data to MySQL database...")
+    db.report.load_usage_report_to_sql(
+        tmp_db, sql_db, tables, wrstat_dates, logger)
+
+    logger.info("Writing report data to .tsv file...")
+    utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR, logger)
+
+    logger.info("Cleaning up...")
     sql_db.close()
     tmp_db.close()
     # delete the on-disk SQLite database file
     os.remove(DATABASE_NAME)
-    print("Done.")
+    logger.info("Done.")
+
+
+if __name__ == "__main__":
+    main()

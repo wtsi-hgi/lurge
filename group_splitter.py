@@ -15,26 +15,29 @@ PROJECT_DIRS = {
     'lustre/scratch119/humgen/projects': '/lustre/scratch119/realdata/mdt[0-9]/projects'
 }
 REPORT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/mpistat/data/"
-SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115", "/lustre/scratch116", "/lustre/scratch118", "/lustre/scratch119"]
+SCRATCHES = ["/lustre/scratch114", "/lustre/scratch115",
+             "/lustre/scratch116", "/lustre/scratch118", "/lustre/scratch119"]
 WORKING_DIR = ""
 
-parser = argparse.ArgumentParser(description="Splits mpistat output by Unix group into files in the current directory. Files are named by group names by default, use the --id flag to use group IDs instead.")
+parser = argparse.ArgumentParser(
+    description="Splits mpistat output by Unix group into files in the current directory. Files are named by group names by default, use the --id flag to use group IDs instead.")
 
 parser.add_argument('--id', '-i', dest='name', action='store_const',
-    const=False, default=True, help="Use group IDs for files instead of" \
-        "group names.")
+                    const=False, default=True, help="Use group IDs for files instead of"
+                    "group names.")
 
 parser.add_argument('--output', '-o', dest='output', type=str, nargs='?',
-    default="groups/",
-    help="Output directory for split files.")
+                    default="groups/",
+                    help="Output directory for split files.")
+
 
 def getHumgenGroups():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
-    con.bind('','')
+    con.bind('', '')
 
     results = con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
-        ['gidNumber', 'cn'])
+                           ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
+                           ['gidNumber', 'cn'])
 
     groups = {}
 
@@ -44,14 +47,15 @@ def getHumgenGroups():
         groups[gid] = gname
 
     return groups
+
 
 def getAllGroups():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
-    con.bind('','')
+    con.bind('', '')
 
     results = con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        ldap.SCOPE_ONELEVEL, "(objectClass=posixGroup)",
-        ['gidNumber', 'cn'])
+                           ldap.SCOPE_ONELEVEL, "(objectClass=posixGroup)",
+                           ['gidNumber', 'cn'])
 
     groups = {}
 
@@ -61,6 +65,7 @@ def getAllGroups():
         groups[gid] = gname
 
     return groups
+
 
 def findReport(dir):
     """Finds most recent mpistat output relevant to 'dir'"""
@@ -72,7 +77,8 @@ def findReport(dir):
     filename = ""
 
     while success is False:
-        filename = "{}_{}.dat.gz".format(report_date.strftime("%Y%m%d"), volume)
+        filename = "{}_{}.dat.gz".format(
+            report_date.strftime("%Y%m%d"), volume)
         try:
             gzip.open(REPORT_DIR+filename, 'rt')
             success = True
@@ -81,9 +87,11 @@ def findReport(dir):
             report_date -= datetime.timedelta(days=1)
 
     if report_date != datetime.date.today():
-        print("Warning, couldn't find mpistat output for today. Using mpistat output for {0:%Y-%m-%d} instead.".format(report_date), file=sys.stderr)
+        print("Warning, couldn't find mpistat output for today. Using mpistat output for {0:%Y-%m-%d} instead.".format(
+            report_date), file=sys.stderr)
 
     return REPORT_DIR+filename
+
 
 def generateIndex(stats):
     global WORKING_DIR
@@ -99,7 +107,7 @@ def generateIndex(stats):
             lines_per_second = 11000
             # Expected time taken to launch an Openstack instance and prepare
             # Treeserve to run
-            instantiation_overhead = 100 #seconds
+            instantiation_overhead = 100  # seconds
             # Expected number of additional nodes on top of dir count * 2
             extra_nodes = 50
 
@@ -127,6 +135,7 @@ def generateIndex(stats):
             memory_use = node_count * bytes_per_node
 
             index.write("{}\t{}\t{}\n".format(group, build_time, memory_use))
+
 
 def main():
     args = parser.parse_args()
@@ -156,7 +165,8 @@ def main():
                 lines_read += 1
 
                 if lines_read % 500000 == 0:
-                    print("{} lines read, {} lines written".format(lines_read, lines_written))
+                    print("{} lines read, {} lines written".format(
+                        lines_read, lines_written))
 
                 split_line = line.split()
 
@@ -168,9 +178,9 @@ def main():
                 if gid not in list(HUMGEN_GROUPS.keys()):
                     if (not file_path.startswith('/lustre/scratch116/vr/projects')
                             and not file_path.startswith('/lustre/scratch116' +
-                                '/humgen/projects')
+                                                         '/humgen/projects')
                             and not file_path.startswith('/lustre/scratch116' +
-                                '/tol/projects')):
+                                                         '/tol/projects')):
                         continue
                     else:
                         is_116 = True
@@ -206,6 +216,7 @@ def main():
 
     generateIndex(stats)
     print("Splitting finished.", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
