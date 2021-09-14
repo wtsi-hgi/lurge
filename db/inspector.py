@@ -1,3 +1,4 @@
+from db_config import SCHEMA
 import logging
 import os
 import typing as T
@@ -42,7 +43,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
     # Renaming Old Data
     cursor.execute(
-        "UPDATE hgi_lustre_usage_new.directory SET project_name = (SELECT CONCAT('.hgi.old.', project_name));")
+        f"UPDATE {SCHEMA}.directory SET project_name = (SELECT CONCAT('.hgi.old.', project_name));")
     db_conn.commit()
 
     # We're now going to go through all the DirectoryReports we have
@@ -79,9 +80,9 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                     db_pi = pis[_pi]
                 except KeyError:
                     cursor.execute(
-                        "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (%s);", (_pi,))
+                        f"INSERT INTO {SCHEMA}.pi (pi_name) VALUES (%s);", (_pi,))
                     cursor.execute(
-                        "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", (_pi,))
+                        f"SELECT pi_id FROM {SCHEMA}.pi WHERE pi_name = %s", (_pi,))
                     (new_pi_id,) = cursor.fetchone()
                     pis[_pi] = new_pi_id
                     db_pi = new_pi_id
@@ -93,9 +94,9 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                     db_group = groups[_unix_group]
                 except KeyError:
                     cursor.execute(
-                        "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (_unix_group, 1))
+                        f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (_unix_group, 1))
                     cursor.execute(
-                        "SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = %s;", (_unix_group, 1))
+                        f"SELECT group_id FROM {SCHEMA}.unix_group WHERE group_name = %s AND is_humgen = %s;", (_unix_group, 1))
                     (new_group_id,) = cursor.fetchone()
                     groups[_unix_group] = new_group_id
                     db_group = new_group_id
@@ -104,14 +105,14 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
             if _volume not in volumes:
                 cursor.execute(
-                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", (_volume,))
+                    f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", (_volume,))
                 cursor.execute(
-                    "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", (_volume,))
+                    f"SELECT volume_id FROM {SCHEMA}.volume WHERE scratch_disk = %s;", (_volume,))
                 (new_volume_id,) = cursor.fetchone()
                 volumes[_volume] = new_volume_id
 
             # Add new data
-            query = """INSERT INTO hgi_lustre_usage_new.directory (project_name, directory_path, num_files,
+            query = f"""INSERT INTO {SCHEMA}.directory (project_name, directory_path, num_files,
             size, last_modified, pi_id, volume_id, group_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
 
             cursor.execute(query, (
@@ -139,7 +140,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             4   PEDBED
             """
 
-            cursor.execute("""INSERT INTO hgi_lustre_usage_new.file_size (directory_id, filetype_id, size) 
+            cursor.execute(f"""INSERT INTO {SCHEMA}.file_size (directory_id, filetype_id, size) 
             VALUES (%s, %s, %s), (%s, %s, %s), (%s, %s, %s), (%s, %s, %s);""", (
                 new_id, 1, _bam, new_id, 2, _cram, new_id, 3, _vcf, new_id, 4, _pedbed
             ))
@@ -149,13 +150,13 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
     # Now we've added all the new data, we can delete all the old data
     # This is data where the project is prefixed with `.hgi.old.`
 
-    cursor.execute("""DELETE FROM hgi_lustre_usage_new.file_size WHERE directory_id IN (
-                        SELECT directory_id FROM hgi_lustre_usage_new.directory
+    cursor.execute(f"""DELETE FROM {SCHEMA}.file_size WHERE directory_id IN (
+                        SELECT directory_id FROM {SCHEMA}.directory
                         WHERE project_name LIKE '.hgi.old.%'
                     )""")
 
     cursor.execute(
-        "DELETE FROM hgi_lustre_usage_new.directory WHERE project_name LIKE '.hgi.old%'")
+        f"DELETE FROM {SCHEMA}.directory WHERE project_name LIKE '.hgi.old%'")
 
     db_conn.commit()
 

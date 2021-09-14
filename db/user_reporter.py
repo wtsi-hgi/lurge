@@ -1,4 +1,5 @@
 import datetime
+from db_config import SCHEMA
 import db.foreign
 import logging
 from lurge_types.user import UserReport
@@ -29,7 +30,7 @@ def load_user_reports_to_db(
 
         if f"scratch{volume}" not in volumes:
             cursor.execute(
-                "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
+                f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
             new_id = cursor.lastrowid
             volumes[f"scratch{volume}"] = new_id
             conn.commit()
@@ -41,7 +42,7 @@ def load_user_reports_to_db(
                     db_user = users[usernames[int(uid)]]
                 except KeyError:
                     cursor.execute(
-                        "INSERT INTO hgi_lustre_usage_new.user (user_name) VALUES (%s);", (usernames[int(uid)],))
+                        f"INSERT INTO {SCHEMA}.user (user_name) VALUES (%s);", (usernames[int(uid)],))
                     new_id = cursor.lastrowid
                     conn.commit()
                     users[usernames[int(uid)]] = new_id
@@ -55,7 +56,7 @@ def load_user_reports_to_db(
                         db_group = groups[grp_name]
                     except KeyError:
                         cursor.execute(
-                            "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (grp_name, 1))
+                            f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (grp_name, 1))
                         new_id = cursor.lastrowid
                         conn.commit()
                         groups[grp_name] = new_id
@@ -64,7 +65,7 @@ def load_user_reports_to_db(
                     db_group = None
 
                 if gid in report.size:
-                    cursor.execute("INSERT INTO hgi_lustre_usage_new.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
+                    cursor.execute(f"INSERT INTO {SCHEMA}.user_usage (record_date, user_id, group_id, volume_id, size, last_modified) VALUES (%s, %s, %s, %s, %s, %s);", (
                         wrstat_dates[volume],
                         db_user,
                         db_group,

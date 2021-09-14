@@ -1,5 +1,5 @@
 import datetime
-from collections import defaultdict
+from db_config import SCHEMA
 import logging
 import sqlite3
 import typing as T
@@ -43,9 +43,9 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
                     pi = pis[pi_name]
                 except KeyError:
                     sql_cursor.execute(
-                        "INSERT INTO hgi_lustre_usage_new.pi (pi_name) VALUES (?);", pi_name)
+                        f"INSERT INTO {SCHEMA}.pi (pi_name) VALUES (?);", pi_name)
                     sql_cursor.execute(
-                        "SELECT pi_id FROM hgi_lustre_usage_new.pi WHERE pi_name = %s", pi_name)
+                        f"SELECT pi_id FROM {SCHEMA}.pi WHERE pi_name = %s", pi_name)
                     (pi,) = sql_cursor.fetchone()
                     pis[pi_name] = pi
             else:
@@ -53,22 +53,22 @@ def load_usage_report_to_sql(tmp_db: sqlite3.Connection, sql_db: mysql.connector
 
             if group not in groups or isHumgen not in groups[group]:
                 sql_cursor.execute(
-                    "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (group, isHumgen))
+                    f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (group, isHumgen))
                 sql_cursor.execute(
-                    "SELECT group_id FROM hgi_lustre_usage_new.unix_group WHERE group_name = %s AND is_humgen = %s;", (group, isHumgen))
+                    f"SELECT group_id FROM {SCHEMA}.unix_group WHERE group_name = %s AND is_humgen = %s;", (group, isHumgen))
                 (group_id,) = sql_cursor.fetchone()
                 groups[group][isHumgen] = group_id
 
             if volume not in volumes:
                 sql_cursor.execute(
-                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", volume)
+                    f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", volume)
                 sql_cursor.execute(
-                    "SELECT volume_id FROM hgi_lustre_usage_new.volume WHERE scratch_disk = %s;", volume)
+                    f"SELECT volume_id FROM {SCHEMA}.volume WHERE scratch_disk = %s;", volume)
                 (volume_id,) = sql_cursor.fetchone()
                 volumes[volume] = volume_id
 
             # Add our data
-            query = """INSERT INTO hgi_lustre_usage_new.lustre_usage (used, quota, record_date, archived,
+            query = f"""INSERT INTO {SCHEMA}.lustre_usage (used, quota, record_date, archived,
                 last_modified, pi_id, unix_id, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
 
             sql_cursor.execute(query, (

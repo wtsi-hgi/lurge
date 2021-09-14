@@ -1,4 +1,5 @@
 from collections import defaultdict
+from db_config import SCHEMA
 import mysql.connector
 import typing as T
 
@@ -21,7 +22,7 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
     cursor = db_conn.cursor()
 
     # PIs
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.pi")
+    cursor.execute(f"SELECT * FROM {SCHEMA}.pi")
     pi_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
     pis: T.Dict[str, int] = {}
@@ -31,14 +32,14 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
     # Groups
     if humgen_only:
         cursor.execute(
-            "SELECT group_id, group_name FROM hgi_lustre_usage_new.unix_group WHERE is_humgen = 1")
+            f"SELECT group_id, group_name FROM {SCHEMA}.unix_group WHERE is_humgen = 1")
         group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
         groups: T.Dict[str, int] = {}
         for (group_id, group_name) in group_results:
             groups[group_name] = group_id
     else:
-        cursor.execute("SELECT * FROM hgi_lustre_usage_new.unix_group")
+        cursor.execute(f"SELECT * FROM {SCHEMA}.unix_group")
         group_results: T.List[T.Tuple[int, str, int]] = cursor.fetchall()
 
         groups: T.DefaultDict[str, dict[int, int]] = defaultdict(dict)
@@ -46,7 +47,7 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
             groups[group_name][isHumgen] = group_id
 
     # Volumes
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.volume")
+    cursor.execute(f"SELECT * FROM {SCHEMA}.volume")
     volume_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
     volumes: T.Dict[str, int] = {}
@@ -54,7 +55,7 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
         volumes[volume_name] = volume_id
 
     # Vault Actions
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.vault_actions")
+    cursor.execute(f"SELECT * FROM {SCHEMA}.vault_actions")
     action_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
     actions: T.Dict[str, int] = {}
@@ -62,7 +63,7 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
         actions[action_name] = action_id
 
     # Users
-    cursor.execute("SELECT * FROM hgi_lustre_usage_new.user")
+    cursor.execute(f"SELECT * FROM {SCHEMA}.user")
     user_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
     users: T.Dict[str, int] = {}

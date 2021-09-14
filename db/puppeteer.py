@@ -1,4 +1,5 @@
 import datetime
+from db_config import SCHEMA
 import logging
 import typing as T
 
@@ -37,7 +38,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                     db_group = groups[vault.group]
                 except KeyError:
                     cursor.execute(
-                        "INSERT INTO hgi_lustre_usage_new.unix_group (group_name, is_humgen) VALUES (%s, %s);", (vault.group, 1))
+                        f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (vault.group, 1))
                     new_id = cursor.lastrowid
                     groups[vault.group] = new_id
                     db_group = new_id
@@ -46,12 +47,12 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
 
             if f"scratch{volume}" not in volumes:
                 cursor.execute(
-                    "INSERT INTO hgi_lustre_usage_new.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
+                    f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
                 new_id = cursor.lastrowid
                 volumes[f"scratch{volume}"] = new_id
 
             # Add new data
-            query = """INSERT INTO hgi_lustre_usage_new.vault (record_date, filepath, group_id, vault_action_id, size, 
+            query = f"""INSERT INTO {SCHEMA}.vault (record_date, filepath, group_id, vault_action_id, size, 
             file_owner, last_modified, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
 
             cursor.execute(query, (

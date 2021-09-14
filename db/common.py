@@ -1,4 +1,5 @@
 import datetime
+from db_config import SCHEMA
 import logging
 import mysql.connector
 
@@ -24,8 +25,8 @@ def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime
 
     cursor = conn.cursor(buffered=True)
     cursor.execute(
-        f"""SELECT DISTINCT record_date FROM hgi_lustre_usage_new.{table}
-        INNER JOIN hgi_lustre_usage_new.volume USING (volume_id)
+        f"""SELECT DISTINCT record_date FROM {SCHEMA}.{table}
+        INNER JOIN {SCHEMA}.volume USING (volume_id)
         WHERE scratch_disk = %s""", (f"scratch{volume}",)
     )
 
