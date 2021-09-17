@@ -34,4 +34,4 @@ def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime
         if date == result:
             logger.warning(f"{volume} already has DB data for {date}")
             return True
-        return False
+    return False
