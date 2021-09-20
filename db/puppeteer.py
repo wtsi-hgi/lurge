@@ -20,7 +20,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
     # ACTIONS WILL NOT BE ADDED LATER
     # We only care about those already in the DB
 
-    _, groups, volumes, actions, _ = db.foreign.get_db_foreign_keys(conn)
+    _, groups, volumes, actions, users = db.foreign.get_db_foreign_keys(conn)
 
     # Now, we're going to go through all the VaultReports and add each as a DB record
     for volume, reports in vault_reports:
@@ -45,6 +45,17 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
             else:
                 db_group = None
 
+            if vault.owner is not None:
+                try:
+                    db_user = users[vault.owner]
+                except KeyError:
+                    cursor.execute(f"INSERT INTO {SCHEMA}.user (user_name) VALUES (%s);", (vault.owner,))
+                    new_id = cursor.lastrowid
+                    users[vault.owner] = new_id
+                    db_user = new_id
+            else:
+                db_user = None
+
             if f"scratch{volume}" not in volumes:
                 cursor.execute(
                     f"INSERT INTO {SCHEMA}.volume (scratch_disk) VALUES (%s);", (f"scratch{volume}",))
@@ -53,7 +64,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
 
             # Add new data
             query = f"""INSERT INTO {SCHEMA}.vault (record_date, filepath, group_id, vault_action_id, size, 
-            file_owner, last_modified, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+            user_id, last_modified, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
 
             cursor.execute(query, (
                 wrstat_dates[volume],
@@ -61,7 +72,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                 db_group,
                 actions[vault.state],
                 vault._size,
-                vault.owner,
+                db_user,
                 vault._mtime,
                 volumes[f"scratch{volume}"]
             ))
