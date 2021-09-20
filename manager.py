@@ -14,12 +14,6 @@ def main(modes: T.Set[str]) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger("manager")
 
-    # Remove any leftover sqlite files
-    try:
-        os.remove(f"{REPORT_DIR}_lurge_tmp_sqlite.db")
-    except FileNotFoundError:
-        pass
-
     if "reporter" in modes:
         # Run report generator
         logger.info("Running reporter")

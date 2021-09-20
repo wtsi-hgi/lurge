@@ -1,4 +1,3 @@
-import sqlite3
 import ldap
 import typing as T
 
@@ -52,21 +51,6 @@ def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]
             group_pis[gid] = pi_sn[group_pis[gid]]
 
     return (group_pis, group_names)
-
-
-def add_humgen_ldap_to_db(ldap_con, tmp_db: sqlite3.Connection) -> None:
-    # Add all the LDAP information to the temporary sqlite database
-    db_cursor = tmp_db.cursor()
-    db_cursor.execute(
-        "CREATE TABLE group_table(gidNumber INTEGER PRIMARY KEY, groupName TEXT, PI TEXT);")
-    tmp_db.commit()
-
-    pis, groups = get_humgen_ldap_info(ldap_con)
-
-    for gid in groups:
-        db_cursor.execute(
-            "INSERT INTO group_table (gidNumber, groupName, PI) VALUES (?, ?, ?)", (gid, groups[gid], pis[gid]))
-    tmp_db.commit()
 
 
 def get_username(ldap_conn, uid: int) -> str:

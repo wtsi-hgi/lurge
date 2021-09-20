@@ -10,9 +10,6 @@ LOGGING_CONFIG = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/lurge/logg
 MAX_DAYS_AGO = 10
 
 # Reporter Config
-# temporary sqlite database location
-DATABASE_NAME = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/_lurge_tmp_sqlite.db"
-
 # directories with group directories to scan for .imirrored
 GROUP_DIRECTORIES = {
     'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],

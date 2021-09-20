@@ -49,7 +49,8 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                 try:
                     db_user = users[vault.owner]
                 except KeyError:
-                    cursor.execute(f"INSERT INTO {SCHEMA}.user (user_name) VALUES (%s);", (vault.owner,))
+                    cursor.execute(
+                        f"INSERT INTO {SCHEMA}.user (user_name) VALUES (%s);", (vault.owner,))
                     new_id = cursor.lastrowid
                     users[vault.owner] = new_id
                     db_user = new_id

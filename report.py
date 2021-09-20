@@ -1,12 +1,11 @@
 from itertools import repeat
+from lurge_types.group_report import GroupReport
 import os
 import datetime
 import subprocess
 import logging
 import multiprocessing
-import sqlite3
 import gzip
-import sys
 import typing as T
 
 import ldap
@@ -19,7 +18,7 @@ import utils.tsv
 
 import db_config as config
 
-from directory_config import DATABASE_NAME, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
+from directory_config import WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:
@@ -37,40 +36,35 @@ def scanDirectory(directory: str) -> T.Optional[str]:
     return None
 
 
-def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[str, T.List[T.Tuple[T.Any, ...]]]:
+def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_groups: T.Dict[str, str], logger: logging.Logger) -> T.Tuple[str, T.List[GroupReport]]:
     """
-    Processes a single wrstat output file and writes a table of results to
-    SQLite. Intended to be ran multiple times concurrently for multiple files.
+    Processes a single wrstat output file and creates a list of GroupReports.
+    Intended to be ran multiple times concurrently for multiple files.
 
     :param wr_file: File name of wrstat output file to process
+    :param ldap_pis: Group ids to PI surname dictionary
+    :param ldap_groups: Group ids to group name dictionary
     :param logger: logging.Logger object to log to
 
-    :returns: volume (str), group_data (List[Tuple[Any...]])
+    :returns: volume (str), group_data (List[GroupReport])
     Example:
-        "scratch123", [(gidNumber, groupName, PI, usage, volume,
-                        lastModified, quota, archivedDirs, isHumgen), ...] 
+        "scratch123", [
+            GroupReport{
+                group_name: "Group Name",
+                pi_name: "PI",
+                usage: 12345,
+                ...
+            }
+        , ...] 
     """
-
-    tmp_db = sqlite3.connect(DATABASE_NAME)
-
-    db_cursor = tmp_db.cursor()
-    db_cursor.execute('''SELECT gidNumber, groupName, PI FROM group_table''')
-    result = db_cursor.fetchall()
 
     volume = wr_file.split('/')[-1].split('.')[0].split('_')[1]
 
-    groups: T.Dict[str, T.Dict[str, T.Any]] = {}
-    for row in result:
-        # rearranging into a more usable format, since each row is in the
-        # form (gid, "groupname", "PIname")
-        gid, groupName, PIname = row
+    groups: T.Dict[str, GroupReport] = {}
+    for gid, group_name in ldap_groups.items():
+        groups[str(gid)] = GroupReport(
+            str(gid), group_name, ldap_pis[gid], volume)
 
-        # lastmodified is in Unix time and will be converted to "days since
-        # last modification" later
-        groups[str(gid)] = {'groupName': groupName, 'PIname': PIname, 'usage': 0,
-                            'lastModified': 0, 'volume': volume, 'isHumgen': True}
-
-    # lazily reads the wrstat file without unzipping the whole thing first
     lines_processed = 0
     logger.info("Opening {} for reading...".format(wr_file))
 
@@ -92,7 +86,7 @@ def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[
             gid = line[3]
             try:
                 try:
-                    groups[gid]['usage'] += int(
+                    groups[gid].usage += int(
                         int(line[1]) / int(line[9]))
                 except ZeroDivisionError:
                     # This should almost never happen, but it did! Looks like a
@@ -102,21 +96,20 @@ def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[
 
                 try:
                     # only update the group's last edit time if it's more recent
-                    if (int(line[5]) > groups[gid]['lastModified']):
+                    if (int(line[5]) > groups[gid].last_modified):
                         # make sure the timestamp isn't in the future
                         now = datetime.datetime.now()
                         now_unix = int(datetime.datetime.timestamp(now))
                         if(now_unix > int(line[5])):
-                            groups[gid]['lastModified'] = int(line[5])
+                            groups[gid].last_modified = int(line[5])
                 except ValueError:
                     continue
             except KeyError:
                 # the first time the group appears, add it to the dictionary
                 # its name will be found later
                 try:
-                    groups[gid] = {'groupName': None, 'PIname': None,
-                                   'usage': int(line[1]), 'lastModified': int(line[5]),
-                                   'volume': volume, 'isHumgen': False}
+                    groups[gid] = GroupReport.create_non_humgen(
+                        str(gid), volume, int(line[1]), int(line[5]))
                 except IndexError:
                     continue
 
@@ -125,13 +118,10 @@ def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[
     # gets the Unix timestamp of when the wrstat file was created
     # int() truncates away the sub-second measurements
     wrstat_date_unix = int(os.stat(wr_file).st_mtime)
-    group_data: T.List[T.Tuple[T.Any, ...]] = []
-    for gid in groups:
-        gidNumber = gid
-        groupName: str = groups[gid]['groupName']
-
+    group_data: T.List[GroupReport] = []
+    for gid, group in groups.items():
         # updates the group names for groups discovered during wrstat crawl
-        if (groupName == None):
+        if group.group_name is None:
             # connection times out too quickly to be declared elsewhere
             ldap_con = utils.ldap.getLDAPConnection()
             try:
@@ -140,82 +130,57 @@ def get_group_data_from_wrstat(wr_file: str, logger: logging.Logger) -> T.Tuple[
             except ValueError:
                 continue
             try:
-                groupName = result[0][1]['cn'][0].decode('UTF-8')
+                group.group_name = result[0][1]['cn'][0].decode('UTF-8')
             except IndexError:
                 # nothing found in LDAP for this group id, skip the rest of
                 # this loop
                 continue
 
-        PI = groups[gid]['PIname']
-        usage = groups[gid]['usage']
-        lastModified_unix = groups[gid]['lastModified']
-        isHumgen = groups[gid]['isHumgen']
-        # wrstat_date_unix - lastModified_unix is the seconds since last
-        # modification relative to when the wrstat file was produced
-        # divided by 86400 (seconds in a day) to find day difference
-        lastModified = round((wrstat_date_unix - lastModified_unix)/86400, 1)
+        # let it calculate its last modified time relative to the wrstat file time
+        group.calculate_last_modified_rel(wrstat_date_unix)
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
         # needs to be multiplied by 1024
         try:
-            quota = int(subprocess.check_output(["lfs", "quota", "-gq", groupName,
-                                                 "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
+            group.quota = int(subprocess.check_output(["lfs", "quota", "-gq", group.group_name,
+                                                       "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
         except subprocess.CalledProcessError:
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error
-            quota = None
+            pass
 
-        archivedDirs = None
         # only check whether a volume is archived if it's smaller than 100MiB,
         # any larger than that and it's very likely to still be in use
-        if (usage < 100*1024**2):
+        if (group.usage < 100*1024**2):
             try:
-                archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
-                                             groupName)
+                group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
+                                                    group.group_name)
             except FileNotFoundError:
                 pass
 
             # only test the next directory if .imirrored wasn't already found
-            if archivedDirs is None:
+            if group.archived_dirs is None:
                 try:
-                    archivedDirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
-                                                 groupName)
+                    group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
+                                                        group.group_name)
                 except FileNotFoundError:
                     pass
-        if (usage == 0 and lastModified_unix == 0):
+        if (group.usage == 0 and group.last_modified == 0):
             # not a useful entry, ignore it
             pass
         else:
-            group_data.append((gidNumber, groupName, PI, usage, volume,
-                              lastModified, quota, archivedDirs, isHumgen))
+
+            group_data.append(group)
 
     logger.info("Processed data for {}.".format(volume))
 
     return (volume, group_data)
 
 
-def generate_tables(tmp_db: sqlite3.Connection, logger: logging.Logger):
-    # Create the temporary sqlite database tables
-    db_cursor = tmp_db.cursor()
-    for vol in VOLUMES:
-        logger.info(f"Creating table scratch{vol}")
-        db_cursor.execute(f"""
-            CREATE TABLE scratch{vol} (gidNumber INTEGER PRIMARY KEY,
-            groupName TEXT, PI TEXT, volumeSize INTEGER, volume TEXT,
-            lastModified INTEGER, quota INTEGER,
-            archivedDirs TEXT, isHumgen INTEGER)
-        """)
-        tmp_db.commit()
-    logger.info("created tables")
-
-
 def main() -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
-
-    # temporary SQLite database used to organise data
-    tmp_db = sqlite3.connect(DATABASE_NAME)
 
     logger.info("Establishing MySQL connection...")
     sql_db = db.common.getSQLConnection(config)
@@ -240,16 +205,9 @@ def main() -> None:
     ldap_con = utils.ldap.getLDAPConnection()
 
     logger.info("Collecting group information...")
-    utils.ldap.add_humgen_ldap_to_db(ldap_con, tmp_db)
-
-    # Create the tables in the temporary DB
-    generate_tables(tmp_db, logger)
+    pis, groups = utils.ldap.get_humgen_ldap_info(ldap_con)
 
     logger.info("Starting wrstat processors...")
-    # sorts file list alphabetically, so that the volumes are in the same order
-    # regardless of how the script arguments are given. This is useful for
-    # having an ordered multiprocess output later.
-    wrstat_files.sort()
 
     # creates a process pool which will concurrently execute 5 processes
     # to read each wrstat file
@@ -257,47 +215,26 @@ def main() -> None:
     try:
         with multiprocessing.Pool(processes=max(len(wrstat_files), 1)) as pool:
             wr_data = pool.starmap(get_group_data_from_wrstat, zip(
-                wrstat_files, repeat(logger)))
+                wrstat_files, repeat(pis), repeat(groups), repeat(logger)))
     except Exception as e:
         sql_db.close()
-        tmp_db.close()
-        os.remove(DATABASE_NAME)
         raise e
 
-    tables = [x[0] for x in wr_data]
-    group_data = [x for y in wr_data for x in y[1]]
-
-    db_cursor = tmp_db.cursor()
-
-    logger.info("adding data to temporary database")
-    for entry in group_data:
-        (gidNumber, groupName, PI, usage, volume, lastModified,
-         quota, archivedDirs, isHumgen) = entry
-        db_cursor.execute("""INSERT INTO {} (gidNumber, groupName, PI,
-                    volumeSize, volume, lastModified, quota, archivedDirs, isHumgen)
-                    VALUES (?,?,?,?,?,?,?,?,?)""".format(volume),
-                          (gidNumber, groupName,
-                           PI, usage, volume, lastModified, quota,
-                           archivedDirs, isHumgen)
-                          )
-
-    tmp_db.commit()
-    logger.info("added data to temporary database")
+    group_report_data: T.Dict[str, T.List[GroupReport]] = {}
+    for volume, group_reports in wr_data:
+        group_report_data[volume] = group_reports
 
     date = datetime.date.today().strftime("%Y-%m-%d")
 
     logger.info("Transferring report data to MySQL database...")
     db.report.load_usage_report_to_sql(
-        tmp_db, sql_db, tables, wrstat_dates, logger)
+        sql_db, group_report_data, wrstat_dates, logger)
 
     logger.info("Writing report data to .tsv file...")
-    utils.tsv.createTsvReport(tmp_db, tables, date, REPORT_DIR, logger)
+    utils.tsv.createTsvReport(group_report_data, date, REPORT_DIR, logger)
 
     logger.info("Cleaning up...")
     sql_db.close()
-    tmp_db.close()
-    # delete the on-disk SQLite database file
-    os.remove(DATABASE_NAME)
     logger.info("Done.")
 
 
