@@ -1,5 +1,6 @@
+from collections import defaultdict
 import datetime
-from lurge_types.group_report import GroupReport
+from lurge_types.group_report import GroupReport, ReportIdentifier
 from db_config import SCHEMA
 import logging
 import typing as T
@@ -55,7 +56,7 @@ def load_usage_report_to_sql(sql_db: mysql.connector.MySQLConnection, group_repo
 
             # Add our data
             query = f"""INSERT INTO {SCHEMA}.lustre_usage (used, quota, record_date, archived,
-                last_modified, pi_id, unix_id, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
+                last_modified, pi_id, unix_id, volume_id, warning_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);"""
 
             sql_cursor.execute(query, (
                 report.usage,
@@ -65,8 +66,29 @@ def load_usage_report_to_sql(sql_db: mysql.connector.MySQLConnection, group_repo
                 report.last_modified_rel,
                 pi,
                 groups[report.group_name][report.isHumgen],
-                volumes[volume]
+                volumes[volume],
+                report.warning
             ))
 
     sql_db.commit()
     logger.info("Report data loaded into MySQL.")
+
+
+def get_all_historical_usage_data(conn: mysql.connector.MySQLConnection) -> T.DefaultDict[ReportIdentifier, T.List[T.Tuple[datetime.date, int]]]:
+    all_history = defaultdict(list)
+
+    cursor = conn.cursor()
+    cursor.execute(f"""
+    SELECT used, record_date, group_name, pi_name, scratch_disk 
+    FROM {SCHEMA}.lustre_usage
+    INNER JOIN unix_group ug on lustre_usage.unix_id = ug.group_id
+    INNER JOIN pi USING (pi_id)
+    INNER JOIN volume USING (volume_id)
+    ORDER BY record_date ASC 
+    """)
+
+    history_results = cursor.fetchall()
+    for usage, date, group, pi, volume in history_results:
+        all_history[ReportIdentifier(group, pi, volume)].append((date, usage))
+
+    return all_history

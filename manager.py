@@ -7,7 +7,7 @@ import sys
 
 import typing as T
 
-from directory_config import REPORT_DIR, LOGGING_CONFIG
+from directory_config import LOGGING_CONFIG
 
 
 def main(modes: T.Set[str]) -> None:

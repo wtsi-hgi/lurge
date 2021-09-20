@@ -21,6 +21,17 @@ GROUP_DIRECTORIES = {
     "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"]
 }
 
+# Warning System
+# Default warning is the 'OK' level
+# WARNINGS contains dictionary of warning levels to a
+# set of thresholds: (days from now, amount of quota to exceed)
+# The levels here must match the DB
+DEFAULT_WARNING = 1
+WARNINGS = {
+    2: {(7, 0.8)},
+    3: {(3, 0.85), (7, 0.95)}
+}
+
 # Inspector Config
 # redirects to actual storage locations
 # also used in puppeteer config
