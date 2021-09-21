@@ -1,3 +1,4 @@
+import datetime
 from directory_config import DEFAULT_WARNING, WARNINGS
 import typing as T
 
@@ -50,8 +51,18 @@ class GroupReport:
     @property
     def warning(self) -> int:
         def _prediction(history, days_from_now) -> int:
-            # TODO Prediction Function
-            ...
+            points = min(len(history), 3)
+            if points == 1:
+                return history[0][1]
+            else:
+                delta_past_1 = (
+                    datetime.datetime.today().date() - history[-1][0]).days
+                delta_past_2 = (datetime.datetime.today(
+                ).date() - history[-points][0]).days
+
+                prediction = history[-1][0] + ((days_from_now + delta_past_1)/(
+                    delta_past_2 - delta_past_1)) * (history[-1][1] - history[-points][1])
+                return prediction
 
         history = historical_usage[self.id]
 
