@@ -1,6 +1,8 @@
 import datetime
-from directory_config import DEFAULT_WARNING, WARNINGS
+from directory_config import DEFAULT_WARNING, WARNINGS, WRSTAT_DIR
 import typing as T
+
+import utils.finder
 
 from db import historical_usage
 from . import ReportIdentifier
@@ -25,6 +27,12 @@ class GroupReport:
         self.isHumgen: bool = True
         self.archived_dirs: T.Optional[str] = None
 
+        latest_wr = utils.finder.findReport(
+            volume, WRSTAT_DIR)
+        wr_date_str = latest_wr.split("/")[-1].split("_")[0]
+        self._date: datetime.date = datetime.date(int(wr_date_str[:4]), int(
+            wr_date_str[4:6]), int(wr_date_str[6:8]))
+
     def calculate_last_modified_rel(self, wrstat_time):
         self.last_modified_rel = (wrstat_time - self.last_modified) // 86400
 
@@ -39,24 +47,22 @@ class GroupReport:
     @property
     def warning(self) -> T.Optional[int]:
         def _prediction(history, days_from_now) -> int:
-            points = min(len(history), 3)
-            if points == 1:
-                return history[0][1]
+            points = min(len(history), 2)
+            if points == 0:
+                return self.usage
             else:
                 delta_past_1 = (
-                    datetime.datetime.today().date() - history[-1][0]).days
+                    datetime.datetime.today().date() - self._date).days
                 delta_past_2 = (datetime.datetime.today(
                 ).date() - history[-points][0]).days
 
-                prediction = history[-1][0] + ((days_from_now + delta_past_1)/(
-                    delta_past_2 - delta_past_1)) * (history[-1][1] - history[-points][1])
+                prediction = self.usage + ((days_from_now + delta_past_1)/(
+                    delta_past_2 - delta_past_1)) * (self.usage - history[-points][1])
                 return prediction
 
         history = historical_usage[self.id]
-        if history == []:
-            return None
 
         prediction = max([DEFAULT_WARNING, *[level for level, criteria in WARNINGS.items() if True in map(
-            lambda x: _prediction(history, x[0])/self.quota > x[1] if self.quota > 0 else 0, criteria)]])
+            lambda x: _prediction(history, x[0])/self.quota > x[1] if self.quota is not None and self.quota > 0 else 0, criteria)]])
 
         return prediction
