@@ -8,7 +8,7 @@ from lurge_types.user import UserReport
 import typing as T
 
 
-def createTsvReport(group_reports: T.Dict[str. T.List[GroupReport]], date: str, report_dir: str, logger: logging.Logger) -> None:
+def createTsvReport(group_reports: T.Dict[str, T.List[GroupReport]], date: str, report_dir: str, logger: logging.Logger) -> None:
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
     file.

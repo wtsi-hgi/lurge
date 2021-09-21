@@ -2,20 +2,8 @@ import datetime
 from directory_config import DEFAULT_WARNING, WARNINGS
 import typing as T
 
-from . import historical_usage
-
-
-class ReportIdentifier:
-    def __init__(self, group, pi, volume):
-        self.group = group
-        self.pi = pi
-        self.volume = volume
-
-    def __hash__(self) -> int:
-        return hash((self.group, self.pi, self.volume))
-
-    def __eq__(self, o: "ReportIdentifier") -> bool:
-        return self.group == o.group and self.pi == o.pi and self.volume == o.volume
+from db import historical_usage
+from . import ReportIdentifier
 
 
 class GroupReport:
@@ -49,7 +37,7 @@ class GroupReport:
         return ReportIdentifier(self.group_name, self.pi_name, self.volume)
 
     @property
-    def warning(self) -> int:
+    def warning(self) -> T.Optional[int]:
         def _prediction(history, days_from_now) -> int:
             points = min(len(history), 3)
             if points == 1:
@@ -65,8 +53,9 @@ class GroupReport:
                 return prediction
 
         history = historical_usage[self.id]
+        if history == []: return None
 
-        prediction = max([DEFAULT_WARNING, *[level for level, criteria in WARNINGS if True in map(
-            lambda x, y: _prediction(history, x) > y, criteria)]])
+        prediction = max([DEFAULT_WARNING, *[level for level, criteria in WARNINGS.items() if True in map(
+            lambda x: _prediction(history, x[0])/self.quota > x[1] if self.quota > 0 else 0, criteria)]])
 
         return prediction

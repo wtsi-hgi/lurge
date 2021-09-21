@@ -1,9 +1,11 @@
-import db.common
-import db.report
+class ReportIdentifier:
+    def __init__(self, group, pi, volume):
+        self.group = group
+        self.pi = pi
+        self.volume = volume
 
-import db_config as config
+    def __hash__(self) -> int:
+        return hash((self.group, self.pi, self.volume))
 
-# Pull all the DB data for the Warnings calculations
-# Its a lot of data, so we want to ALL of it in ONE go
-_conn = db.common.getSQLConnection(config)
-historical_usage = db.report.get_all_historical_usage_data(_conn)
+    def __eq__(self, o: "ReportIdentifier") -> bool:
+        return self.group == o.group and self.pi == o.pi and self.volume == o.volume
