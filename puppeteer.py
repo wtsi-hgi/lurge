@@ -69,18 +69,20 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 filepath = base64.b64decode(
                     wr_line_info[0]).decode("UTF-8", "replace")
             except:
+                logger.warning(f"couldn't decode filepath {wr_line_info[0]}")
                 continue
 
             path_elems = filepath.split("/")
             # we need a file in a .vault directory, and a `-` in the last
             # part of the filename, so we know its a full file
-            if ".vault" in path_elems and "-" in path_elems[-1]:
+            if ".vault" in path_elems and wr_line_info[7] == "f":
                 vault_loc = path_elems.index(".vault")
                 try:
                     rel_path = base64.b64decode(
-                        path_elems[-1].split("-")[1]).decode("UTF-8", "replace").replace("_", "/")
+                        "".join(path_elems[vault_loc:]).split("-")[1]).decode("UTF-8", "replace").replace("_", "/")
                 except:
-                    # TODO (also find specific error)
+                    logger.warning(
+                        f"couldn't decode original file path for vault key {filepath}")
                     continue
 
                 full_path = "/".join(path_elems[:vault_loc]) + "/" + rel_path
@@ -91,7 +93,8 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 try:
                     inode = int(encoded_inode, 16)
                 except ValueError:
-                    # TODO
+                    logger.warning(
+                        f"couldn't decode inode from base16 {encoded_inode}")
                     continue
 
                 master_of_puppets[inode] = VaultPuppet(

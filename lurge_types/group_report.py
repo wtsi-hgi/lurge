@@ -53,7 +53,8 @@ class GroupReport:
                 return prediction
 
         history = historical_usage[self.id]
-        if history == []: return None
+        if history == []:
+            return None
 
         prediction = max([DEFAULT_WARNING, *[level for level, criteria in WARNINGS.items() if True in map(
             lambda x: _prediction(history, x[0])/self.quota > x[1] if self.quota > 0 else 0, criteria)]])
