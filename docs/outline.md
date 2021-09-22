@@ -12,24 +12,25 @@
 
 ### `report.py`
 
-- creates temporary sqlite database on disk
 - estableses connection to MySQL (`db/common.py`)
 - finds the latest wrstat for each volume, and checks if its already in the database. we only care if its new data (`utils/finder.py` and `db/report.py`)
 - estableshes connection to Sanger LDAP (`utils/ldap.py`)
-- creates sqlite table of humgen ldap groups, with gid, name and PI (`utils/ldap.py`)
-- creates sqlite tables for each possible volume
+- collects humgen ldap groups, with gid, name and PI (`utils/ldap.py`)
 - runs the following for each wrstat input (multiproc pool)
-    - creates a new connection to the sqlite db (stops any issues re. concurrent editing)
     - reads wrstat filename to determine volume
     - deserialises group table into memory
-    - iterates over the wrstat file, accumalating group data into memory
+    - iterates over the wrstat file, accumalating group data into memory. this is stored in GroupReport objects (`lurge_types/group_report.py`)
     - for each group accumalated:
       - fill in blanks from ldap if neccesary
       - attempt to get quota and consumption by running `lfs quota`
       - check for archived directories (old .imirrored file)
       - returns the group data for the volume
-    - adds all the group data for all the volumes to the sqlite database
     - transfers the data to the mysql database (`db/report.py`)
+        - one of the fields here is `report.warning`, which calculates the status of that group (logic in `lurge_types/group_report.py`).
+            - at the start we load all the historical data for each group (`db/__init__.py`)
+            - we take the historical data for this group, and calculate the predictions in some days from now
+            - this is compared to the values in `directory_config.py`, which are days_from_now:max_percentage pairs for each warning level
+            - it then returns the max warning level (the worst and most serious warning)
     - writes output to `.tsv` file (`utils/tsv.py`)
     - removes sqlite file
 
@@ -68,7 +69,7 @@
     - finds the most recent wrstat for each volume (`utils/finder.py`)
     - checks that it hasn't already got that data in the DB, otherwise it'll skip that particular wrstat
     - iterates over wrstat file for first time (finding vaults)
-        - if it finds the deepest level in a vault (contains `.vault` and `XXX-YYY`), it gets the relative path of the file from the `.vault`
+        - if it finds the deepest level in a vault (contains `.vault` and is a file), it gets the relative path of the file from the `.vault`
         - using the relative path, and the path of the `.vault`, it can produce the full path
         - it can also get the inode out from the vault path
         - it creats a `VaultPuppet` with the information it has at the moment (`lurge_types/vault.py`)

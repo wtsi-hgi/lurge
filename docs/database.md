@@ -24,6 +24,19 @@ Fully defined in `github/wtsi-hgi/lustre-usage-db-transfer`
 | volume_id    | int     | PK auto_increment    |
 | scratch_disk | text    |                      |
 
+### `warning`
+
+| Field      | Type | Constraints       |
+| :----------| :----| :-----------------|
+| warning_id | int  | PK auto_increment |
+| warning    | text |                   |
+
+Filled out to:
+| warning_id | warning  |
+| :----------| :--------|
+| 1          | OK       |
+| 2          | Kinda OK |
+| 3          | Not OK   |
 ### `lustre_usage`
 
 | Field         | Type      | Constraints               |
@@ -37,6 +50,7 @@ Fully defined in `github/wtsi-hgi/lustre-usage-db-transfer`
 | pi_id         | int       | FK `pi.pi_id`             |
 | unix_id       | int       | FK `unix_group.group_id`  |
 | volume_id     | int       | FK `volume.volume_id`     |
+| warning_id    | int       | FK `warning.warning_id`   |
 
 ### `directory`
 
@@ -89,6 +103,12 @@ Filled out to:
 | 1               | Keep        |
 | 2               | Archive     |
 
+### `user`
+
+| Field     | Type | Constraints       |
+| :---------| :----| :-----------------|
+| user_id   | int  | PK auto_increment |
+| user_name | text |                   |
 ### `vault`
 
 | Field           | Type   | Constraints                        |
@@ -99,18 +119,11 @@ Filled out to:
 | group_id        | int    | FK `unix_group.group_id`           |
 | vault_action_id | int    | FK `vault_actions.vault_action_id` |
 | size            | bigint |                                    |
-| file_owner      | text   |                                    |
 | last_modified   | date   |                                    |
 | volume_id       | int    | FK `volume.volume_id`              |
+| user_id         | int    | FK `user.user_id`                  |
 
 SQL definition in `github/wtsi-hgi/lustre-usage-db-transfer` uses `int` for size, but it isn't big enough
-
-### `user`
-
-| Field     | Type | Constraints       |
-| :---------| :----| :-----------------|
-| user_id   | int  | PK auto_increment |
-| user_name | text |                   |
 
 ### `user_usage`
 
