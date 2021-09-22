@@ -28,8 +28,8 @@ GROUP_DIRECTORIES = {
 # The levels here must match the DB
 DEFAULT_WARNING = 1
 WARNINGS = {
-    2: {(7, 0.8)},
-    3: {(3, 0.85), (7, 0.95)}
+    2: {(7, 0.85)},
+    3: {(3, 0.8), (7, 0.95)}
 }
 
 # Inspector Config

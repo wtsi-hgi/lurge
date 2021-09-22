@@ -31,6 +31,12 @@
             - we take the historical data for this group, and calculate the predictions in some days from now
             - this is compared to the values in `directory_config.py`, which are days_from_now:max_percentage pairs for each warning level
             - it then returns the max warning level (the worst and most serious warning)
+            - currently, this is:
+            <table><tr><th></th><th>Now + 3 Days</th><th>Now + 7 Days</th></tr>
+            <tr><th>Usage >95%</th><td>Not OK (3)</td><td>Not OK (3)</td></tr>
+            <tr><th>Usage >85%</th><td>Not OK (3)</td><td>Kinda OK (2)</td></tr>
+            <tr><th>Usage >80%</th><td> Kinda OK (2) </td><td> - </td></tr>
+            </table>
     - writes output to `.tsv` file (`utils/tsv.py`)
     - removes sqlite file
 
