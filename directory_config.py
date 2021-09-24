@@ -39,7 +39,9 @@ PROJECT_DIRS = {
     'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
     'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
     'lustre/scratch115/teams': 'lustre/scratch115/realdata/mdt[0-9]/teams',
-    'lustre/scratch119/humgen/teams': 'lustre/scratch119/realdata/mdt[0-9]/teams'
+    'lustre/scratch119/humgen/teams': 'lustre/scratch119/realdata/mdt[0-9]/teams',
+    "lustre/scratch123/hgi/projects": "lustre/scratch123/hgi/mdt[0-9]/projects",
+    "lustre/scratch123/hgi/teams": "lustre/scratch123/hgi/mdt[0-9]/teams"
 }
 
 # where to search if no specific path given
@@ -48,5 +50,22 @@ ALL_PROJECTS = {
     '115': ["lustre/scratch115/realdata/mdt[0-9]/projects", "lustre/scratch115/realdata/mdt[0-9]/teams"],
     '118': ["lustre/scratch118/humgen/hgi/projects", "lustre/scratch118/humgen/old-team-data"],
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"],
-    "123": ["lustre/scratch123/hgi/projects", "lustre/scratch123/hgi/teams"]
+    "123": ["lustre/scratch123/hgi/mdt[0-9]/projects", "lustre/scratch123/hgi/mdt[0-9]/teams"]
 }
+
+# Group Splitter Treeserve Info
+class Treeserve:
+    LINES_PER_SECOND = 11000
+    OVERHEAD_SECS = 100
+    EXTRA_NODES = 50
+
+    # Format is list of pairs (max percent: bytes per node)
+    # This list MUST be in ascending percentage order
+    # 100 is used as the default value
+    BYTES_PER_NODE_BY_DIR_PERCENT = [
+        (0.8, 12000),
+        (1.5, 10000),
+        (2, 9000),
+        (4, 8500),
+        (100, 8000)
+    ]
