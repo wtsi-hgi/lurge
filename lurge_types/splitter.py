@@ -1,5 +1,6 @@
 import typing as T
 
+
 class GroupSplit:
     def __init__(self):
         self.lines: T.Set[str] = set()

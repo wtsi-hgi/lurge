@@ -53,8 +53,10 @@ ALL_PROJECTS = {
     "123": ["lustre/scratch123/hgi/mdt[0-9]/projects", "lustre/scratch123/hgi/mdt[0-9]/teams"]
 }
 
-# Group Splitter Treeserve Info
+
 class Treeserve:
+    # Group Splitter Treeserve Info
+
     LINES_PER_SECOND = 11000
     OVERHEAD_SECS = 100
     EXTRA_NODES = 50
