@@ -14,7 +14,7 @@ import utils.ldap
 from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, VOLUMES
 
 
-def get_group_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
+def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
     report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
     group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
 
@@ -31,10 +31,16 @@ def get_group_info_from_wrstat(volume: int, logger: logging.Logger) -> T.Default
             wr_line_info = line.split()
             group_id: str = wr_line_info[3]
 
-            group_info[group_id].lines.add(line)
-
+            group_info[group_id].lines += 1
             if wr_line_info[7] == "d":
                 group_info[group_id].directory_count += 1
+
+            try:
+                grp_name = groups[group_id]
+            except KeyError:
+                continue
+            with gzip.open(f"{REPORT_DIR}/groups/{grp_name}.dat.gz", "wt") as f:
+                f.write(line)
 
     logger.info(f"finished reading {volume}")
     return group_info
@@ -44,29 +50,24 @@ def main(upload: bool = True) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
-    with multiprocessing.Pool(processes=max(len(VOLUMES), 1)) as pool:
-        reports_by_volume: T.List[T.DefaultDict[str, GroupSplit]] = pool.starmap(
-            get_group_info_from_wrstat, zip(VOLUMES, repeat(logger)))
-
     ldap_conn = utils.ldap.getLDAPConnection()
     _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
+
+    with multiprocessing.Pool(processes=max(len(VOLUMES), 1)) as pool:
+        reports_by_volume: T.List[T.DefaultDict[str, GroupSplit]] = pool.starmap(
+            get_group_info_from_wrstat, zip(VOLUMES, repeat(groups), repeat(logger)))
 
     all_group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
     for volume in reports_by_volume:
         for gid, report in volume.items():
             all_group_info[gid] += report
 
-    logger.info(f"writing files for groups")
     for gid, total_report in all_group_info.items():
         try:
             total_report.group_name = groups[gid]
         except KeyError:
             del total_report[gid]
             continue
-
-        logger.debug(f"writing file for {total_report.group_name}")
-        with gzip.open(f"{REPORT_DIR}/groups/{total_report.group_name}.dat.gz", "wt") as f:
-            f.writelines(total_report.lines)
 
     logger.info("writing index file")
     with open(f"{REPORT_DIR}/groups/index.txt", "w") as f:
