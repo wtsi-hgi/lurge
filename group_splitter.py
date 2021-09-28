@@ -1,11 +1,13 @@
 import argparse
 import datetime
 import gzip
+import glob
 import logging
 import logging.config
 import os
 from lurge_types.splitter import GroupSplit
 import multiprocessing
+import subprocess
 import typing as T
 from collections import defaultdict
 from itertools import repeat
@@ -63,20 +65,26 @@ def main(upload: bool = True) -> None:
         reports_by_volume: T.List[T.DefaultDict[str, GroupSplit]] = pool.starmap(
             get_group_info_from_wrstat, zip(VOLUMES, repeat(groups), repeat(logger)))
 
+    logger.info("flushing any remaining lines and totalling directory counts")
     all_group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
     for volume in reports_by_volume:
         for gid, report in volume.items():
             report.flush_lines()
             all_group_info[gid] += report
 
+    logger.info("concatenating all the files")
     for gid, total_report in all_group_info.items():
         try:
             total_report.group_name = groups[gid]
+            group_files = glob.glob(
+                f"{REPORT_DIR}groups/{datetime.datetime.now().strftime('%Y%m%d')}/{groups[gid]}.*.dat.gz")
+            subprocess.run(
+                ["cat", *group_files, ">", f"{REPORT_DIR}groups/{datetime.datetime.strftime('%Y%m%d')}/{groups[gid]}.dat.gz"])
+            for f in group_files:
+                os.remove(f)
         except KeyError:
             del total_report[gid]
             continue
-
-    # TODO Join all the files together
 
     logger.info("writing index file")
     with open(f"{REPORT_DIR}/groups/index.txt", "w") as f:
