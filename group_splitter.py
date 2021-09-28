@@ -7,7 +7,6 @@ import logging.config
 import os
 from lurge_types.splitter import GroupSplit
 import multiprocessing
-import subprocess
 import typing as T
 from collections import defaultdict
 from itertools import repeat
@@ -21,8 +20,7 @@ from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, 
 def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
     report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
 
-    def gs_construct(): return GroupSplit(volume)
-    group_info: T.DefaultDict[str, GroupSplit] = defaultdict(gs_construct)
+    group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
 
     with gzip.open(report, "rt") as wrstat:
         lines_read: int = 0
@@ -37,13 +35,24 @@ def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: lo
             wr_line_info = line.split()
             group_id: str = wr_line_info[3]
 
+            if group_info[group_id].volume is None:
+                # unfortunately, this has to be like this
+                # because we need a constructor for defaultdict
+                # that isn't dependent on any variable in this
+                # function (like volume) :(
+                # normally this isn't the case, but because
+                # we're in multiprocessing, the constructor
+                # needs to be picklable
+                group_info[group_id].volume = volume
+
             if group_info[group_id].group_name is None:
                 try:
                     group_info[group_id].group_name = groups[group_id]
                 except KeyError:
                     continue
 
-            group_info[group_id].lines += line
+            group_info[group_id].add_lines(line)
+            group_info[group_id].line_count += 1
             if wr_line_info[7] == "d":
                 group_info[group_id].directory_count += 1
 
@@ -58,8 +67,14 @@ def main(upload: bool = True) -> None:
     ldap_conn = utils.ldap.getLDAPConnection()
     _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
 
-    os.makedirs(
-        f"{REPORT_DIR}/groups/{datetime.datetime.now().strftime('%Y%m%d')}")
+    date_str = datetime.datetime.now().strftime("%Y%m%d")
+
+    try:
+        os.makedirs(
+            f"{REPORT_DIR}/groups/{date_str}")
+    except IsADirectoryError:
+        logger.warning(f"data already exists for {date_str}")
+        return
 
     with multiprocessing.Pool(processes=max(len(VOLUMES), 1)) as pool:
         reports_by_volume: T.List[T.DefaultDict[str, GroupSplit]] = pool.starmap(
@@ -73,39 +88,47 @@ def main(upload: bool = True) -> None:
             all_group_info[gid] += report
 
     logger.info("concatenating all the files")
+    gids_to_delete: T.List[str] = []
     for gid, total_report in all_group_info.items():
         try:
             total_report.group_name = groups[gid]
             group_files = glob.glob(
-                f"{REPORT_DIR}groups/{datetime.datetime.now().strftime('%Y%m%d')}/{groups[gid]}.*.dat.gz")
-            subprocess.run(
-                ["cat", *group_files, ">", f"{REPORT_DIR}groups/{datetime.datetime.strftime('%Y%m%d')}/{groups[gid]}.dat.gz"])
+                f"{REPORT_DIR}groups/{date_str}/{groups[gid]}.*.dat.gz")
+            os.system(
+                f"cat {' '.join(group_files)} > {REPORT_DIR}groups/{date_str}/{groups[gid]}.dat.gz")
             for f in group_files:
                 os.remove(f)
         except KeyError:
-            del total_report[gid]
+            gids_to_delete.append(gid)
             continue
 
+    for gid in gids_to_delete:
+        del all_group_info[gid]
+
     logger.info("writing index file")
-    with open(f"{REPORT_DIR}/groups/index.txt", "w") as f:
+    with open(f"{REPORT_DIR}groups/{date_str}/index.txt", "w") as f:
         f.write("Group\tBuild Time (sec)\tMemory Use(bytes)\n")
 
         for report in all_group_info.values():
-            build_time = Treeserve.OVERHEAD_SECS + report.lines / Treeserve.LINES_PER_SECOND
+            build_time = Treeserve.OVERHEAD_SECS + \
+                report.lines // Treeserve.LINES_PER_SECOND
 
             directory_percentage = report.directory_count * \
-                100 / len(report.lines)
+                100 / report.line_count
             bytes_per_node = [
-                x for x in Treeserve.BYTES_PER_NODE_BY_DIR_PERCENT if directory_percentage < x[0]][0][1]
+                x for x in Treeserve.BYTES_PER_NODE_BY_DIR_PERCENT if directory_percentage <= x[0]][0][1]
 
             memory_use = (report.directory_count * 2 +
                           Treeserve.EXTRA_NODES) * bytes_per_node
 
-            f.write("\t".join([report.group_name, build_time, memory_use]))
+            f.write("\t".join([report.group_name, str(
+                build_time), str(memory_use)]) + "\n")
 
     # TODO Upload to S3
     if upload:
         ...
+
+    # TODO Compress Directory
 
 
 if __name__ == "__main__":
