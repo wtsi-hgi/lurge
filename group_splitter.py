@@ -1,7 +1,9 @@
 import argparse
+import datetime
 import gzip
 import logging
 import logging.config
+import os
 from lurge_types.splitter import GroupSplit
 import multiprocessing
 import typing as T
@@ -16,7 +18,9 @@ from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, 
 
 def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
     report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
-    group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
+
+    def gs_construct(): return GroupSplit(volume)
+    group_info: T.DefaultDict[str, GroupSplit] = defaultdict(gs_construct)
 
     with gzip.open(report, "rt") as wrstat:
         lines_read: int = 0
@@ -31,16 +35,15 @@ def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: lo
             wr_line_info = line.split()
             group_id: str = wr_line_info[3]
 
-            group_info[group_id].lines += 1
+            if group_info[group_id].group_name is None:
+                try:
+                    group_info[group_id].group_name = groups[group_id]
+                except KeyError:
+                    continue
+
+            group_info[group_id].lines += line
             if wr_line_info[7] == "d":
                 group_info[group_id].directory_count += 1
-
-            try:
-                grp_name = groups[group_id]
-            except KeyError:
-                continue
-            with gzip.open(f"{REPORT_DIR}/groups/{grp_name}.dat.gz", "wt") as f:
-                f.write(line)
 
     logger.info(f"finished reading {volume}")
     return group_info
@@ -53,6 +56,9 @@ def main(upload: bool = True) -> None:
     ldap_conn = utils.ldap.getLDAPConnection()
     _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
 
+    os.makedirs(
+        f"{REPORT_DIR}/groups/{datetime.datetime.now().strftime('%Y%m%d')}")
+
     with multiprocessing.Pool(processes=max(len(VOLUMES), 1)) as pool:
         reports_by_volume: T.List[T.DefaultDict[str, GroupSplit]] = pool.starmap(
             get_group_info_from_wrstat, zip(VOLUMES, repeat(groups), repeat(logger)))
@@ -60,6 +66,7 @@ def main(upload: bool = True) -> None:
     all_group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
     for volume in reports_by_volume:
         for gid, report in volume.items():
+            report.flush_lines()
             all_group_info[gid] += report
 
     for gid, total_report in all_group_info.items():
@@ -68,6 +75,8 @@ def main(upload: bool = True) -> None:
         except KeyError:
             del total_report[gid]
             continue
+
+    # TODO Join all the files together
 
     logger.info("writing index file")
     with open(f"{REPORT_DIR}/groups/index.txt", "w") as f:

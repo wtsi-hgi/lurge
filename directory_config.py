@@ -71,3 +71,6 @@ class Treeserve:
         (4, 8500),
         (100, 8000)
     ]
+
+
+MAX_LINES_PER_GROUP_PER_VOLUME = 10
