@@ -50,7 +50,7 @@ if __name__ == "__main__":
         sys.exit(
             "Running modes must be provided, inspector, reporter, puppeteer, users, splitter")
     for arg in sys.argv[1:]:
-        if arg not in ["reporter", "inspector", "puppeteer", "users, splitter"]:
+        if arg not in ["reporter", "inspector", "puppeteer", "users", "splitter"]:
             sys.exit(
                 "Available running modes are inspector, reporter, puppeteer, users, splitter")
     main(set(sys.argv[1:]))
