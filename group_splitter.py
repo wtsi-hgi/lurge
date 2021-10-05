@@ -10,6 +10,7 @@ import multiprocessing
 import typing as T
 from collections import defaultdict
 from itertools import repeat
+import time
 
 import utils.finder
 import utils.ldap
@@ -21,7 +22,8 @@ def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: lo
     report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
 
     if report is None:
-        raise FileNotFoundError(f"report for scratch{volume} couldn't be found")
+        raise FileNotFoundError(
+            f"report for scratch{volume} couldn't be found")
 
     group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
 
@@ -127,11 +129,23 @@ def main(upload: bool = True) -> None:
             f.write("\t".join([str(report.group_name), str(
                 build_time), str(memory_use)]) + "\n")
 
-    # TODO Upload to S3
-    if upload:
-        ...
+    # Write group and passwd files
+    os.system(f"getent group > {REPORT_DIR}groups/{date_str}/groupfile")
+    os.system(f"getent passwd > {REPORT_DIR}groups/{date_str}/passwdfile")
 
-    # TODO Compress Directory
+    if upload:
+        logger.info("uploading to s3")
+        for _ in range(5):
+            rtn_code = os.system(
+                f's3cmd sync "{REPORT_DIR}groups/{date_str}/" "s3://branchserve/mpistat"')  # this still references mpistat - should we change that?
+            if rtn_code == 0:
+                break
+            else:
+                logger.warning("s3cmd sync failed, retrying in two seconds")
+                time.sleep(2)
+        else:
+            logger.warning(
+                "s3cmd sync failed five times in a row. didn't sync")
 
 
 if __name__ == "__main__":
