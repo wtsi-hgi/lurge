@@ -20,6 +20,9 @@ from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, 
 def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
     report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
 
+    if report is None:
+        raise FileNotFoundError(f"report for scratch{volume} couldn't be found")
+
     group_info: T.DefaultDict[str, GroupSplit] = defaultdict(GroupSplit)
 
     with gzip.open(report, "rt") as wrstat:
@@ -111,7 +114,7 @@ def main(upload: bool = True) -> None:
 
         for report in all_group_info.values():
             build_time = Treeserve.OVERHEAD_SECS + \
-                report.lines // Treeserve.LINES_PER_SECOND
+                report.line_count // Treeserve.LINES_PER_SECOND
 
             directory_percentage = report.directory_count * \
                 100 / report.line_count
@@ -121,7 +124,7 @@ def main(upload: bool = True) -> None:
             memory_use = (report.directory_count * 2 +
                           Treeserve.EXTRA_NODES) * bytes_per_node
 
-            f.write("\t".join([report.group_name, str(
+            f.write("\t".join([str(report.group_name), str(
                 build_time), str(memory_use)]) + "\n")
 
     # TODO Upload to S3
