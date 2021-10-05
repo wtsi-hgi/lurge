@@ -57,6 +57,9 @@ ALL_PROJECTS = {
 class Treeserve:
     # Group Splitter Treeserve Info
 
+    # this still references mpistat, do we want to change that?
+    S3_UPLOAD_LOCATION = "s3://branchserve/mpistat/"
+
     LINES_PER_SECOND = 11000
     OVERHEAD_SECS = 100
     EXTRA_NODES = 50

@@ -10,6 +10,7 @@ import multiprocessing
 import typing as T
 from collections import defaultdict
 from itertools import repeat
+import subprocess
 import time
 
 import utils.finder
@@ -19,6 +20,25 @@ from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, 
 
 
 def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
+    """processes a wrstat file to get us group information
+
+    :param volume: - the volume we're going to be searching through
+    :param groups: - pairs of group ids to the group names
+    :param logger: - a logging.Logger object to log to
+
+    :returns: DefaultDict[group_id (str), group_information (GroupSplit)]
+    example:
+        {
+            "12345": GroupSplit{
+                lines: [],
+                line_count: 0,
+                directory_count: 0,
+                group_name: "group_name_abc",
+                volume: 123
+            }
+        }
+    """
+
     report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
 
     if report is None:
@@ -136,12 +156,15 @@ def main(upload: bool = True) -> None:
     if upload:
         logger.info("uploading to s3")
         for _ in range(5):
-            rtn_code = os.system(
-                f's3cmd sync "{REPORT_DIR}groups/{date_str}/" "s3://branchserve/mpistat"')  # this still references mpistat - should we change that?
-            if rtn_code == 0:
+            proc = subprocess.run(
+                ["s3cmd", "sync", f"{REPORT_DIR}groups/{date_str}/", Treeserve.S3_UPLOAD_LOCATION], capture_output=True)
+            if proc.returncode == 0:
+                logger.info("successfully uploaded to S3")
                 break
             else:
                 logger.warning("s3cmd sync failed, retrying in two seconds")
+                logger.debug(
+                    f"{proc.stdout.decode('UTF-8')}\n{proc.stderr.decode('UTF-8')}")
                 time.sleep(2)
         else:
             logger.warning(
