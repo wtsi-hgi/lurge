@@ -1,7 +1,7 @@
 # Global Config
 WRSTAT_DIR = "/lustre/scratch114/teams/hgi/lustre_reports/wrstat/data/"
 REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/"
-VOLUMES = [114, 115, 118, 119, 123]
+VOLUMES = [114, 115, 116, 118, 119, 123]
 LOGGING_CONFIG = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/lurge/logging.conf"
 
 
@@ -77,3 +77,9 @@ class Treeserve:
 
 
 MAX_LINES_PER_GROUP_PER_VOLUME = 50
+
+# pseudo groups for extra non-humgen groups we want to find out about
+# {start of file path: (pseudo-group number (negative), group name, pi name)}
+PSEUDO_GROUPS = {
+    "/lustre/scratch116/casm/team113": (-1, "team113", "Team 113 PI")
+}
