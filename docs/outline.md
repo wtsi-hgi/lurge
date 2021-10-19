@@ -120,21 +120,16 @@
             - we'll write a row for that user/group combination with the size per volume, if the user has data in that volume associated to that group
             - same for a row of last modified dates
 
-### `group_splitter_cron.sh`
-* bsub: `group_splitter_manager.sh`
-  * `group_splitter.py`
-    * Finds latest wrstat file for each volume its interested in
-    * Gets all groups and all humgen groups from ldap
-    * Iterate through each wrstat file:
-      * Decode file path
-      * If gid isn't humgen or special (116/vr or tol) then skip
-      * Gets group name by gid; if it can't, then skip
-      * Open the output file for the group, if it hasn't been already
-      * Write the input to the output file
-      * Take stats (number of records and number of directories)
-    * Create an "index file" from the group/records/directories stats
-      based on anecdotal timing (this is to estimate how long
-      TreeServe takes to start)
-  * Dumps passwd and group databases to files
-  * Uploads split wrstat files, passwd and group databases to S3
-
+### `group_splitter.py`
+- creates a connection to LDAP servers and gets the humgen group info (`utils/ldap.py`)
+- it then creates a directory for us, tagged with the date, or quits if the directory already exists (data already exists for that date)
+- then, we'll create a multiprocessing pool for getting the information from the wrstat reports
+    - we'll find the report for each volume (`utils/finder.py`)
+    - we'll iterate over the wrstat file, and split each line to get the group id, and create a `GroupSplit` object for it (`lurge_types/splitter.py`)
+    - when we add a line to the `GroupSplit` object, it'll store it in memory until there's `MAX_LINES_PER_GROUP_PER_VOLUME` in memory, where it'll then write it to a file
+    - these files are under `groups/{date}/`, and is a file per group per volume
+- after the pool has closed, we'll flush any remaining lines to their files
+- as each file is per volume, we need to combine them into files purely by group. luckily, we can just `cat` gzip files together to get another valid `gzip` file, so we don't need to unzip stuff :)
+- we can then create an "index file" based on statistics estimating how long TreeServe will take
+- we'll also dump passwd and group info to files
+- finally, (if neccesary), we'll upload all of this to S3

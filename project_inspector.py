@@ -147,7 +147,6 @@ def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str
                 mtime = int(line_info[5])
                 links = int(line_info[9])
 
-                # TODO: work out why this is in old project_inspector
                 try:
                     size = int(size / links)
                 except ZeroDivisionError:
