@@ -14,6 +14,7 @@ MAX_DAYS_AGO = 10
 GROUP_DIRECTORIES = {
     'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
     'scratch115': ["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
+    "scratch116": ["/lustre/scratch116/humgen/teams", "/lustre/scratch116/humgen/projects"],
     'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
                    "/lustre/scratch118/humgen/hgi/projects/"],
     'scratch119': ["/lustre/scratch119/humgen/teams",

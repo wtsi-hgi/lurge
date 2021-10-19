@@ -65,7 +65,7 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     for gid, group_name in ldap_groups.items():
         groups[str(gid)] = GroupReport(
             str(gid), group_name, ldap_pis[gid], volume)
-    for gid, group_name, pi in PSEUDO_GROUPS:
+    for gid, group_name, pi in PSEUDO_GROUPS.values():
         groups[str(gid)] = GroupReport(str(gid), group_name, pi, volume)
 
     lines_processed = 0
