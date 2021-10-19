@@ -186,7 +186,7 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     return (volume, group_data)
 
 
-def main() -> None:
+def main(start_days_ago: int = 0) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ def main() -> None:
 
     for volume in VOLUMES:
         latest_wr = utils.finder.findReport(
-            f"scratch{volume}", WRSTAT_DIR, logger)
+            f"scratch{volume}", WRSTAT_DIR, logger, start_days_ago)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
