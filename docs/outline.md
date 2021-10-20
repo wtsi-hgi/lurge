@@ -56,7 +56,7 @@
             - get the PI and group information
             - if the directory (file) not in the reports (which it shouldn't be anyway), add it, and all its parent directories
             - backfill the file sizes, modified times etc.
-            - if BAM/CRAM etc file, also backfill the file size in that category
+            - if the file is one of those defined in the config, also backfill the file size in that category
         - return the collection of reports
     - if `tosql` flag set, we're going to write the information to the database (`db/common.py` and `db.inspector.py`)
         - First, we're going to load the PI/Group/Volume foreign keys into memory
@@ -64,7 +64,7 @@
         - For each DirectoryRecord we have, we're going to format the sizes nicely
         - We'll add anything to the foreign tables if neccesary
         - We're then going to add the information to the `directory` MySQL table, and get back the `directory_id`.
-        - We can use that ID to then add all the BAM/CRAM etc data to the `file_size` table.
+        - We can use that ID to then add all the specific filetype data to the `file_size` table.
         - Finally, we can remove any old data - this is data tagged with `.hgi.old`
     - if we're not going to write it to the database, we're going to write it to `stdout` (`utils/table.py`)
 
