@@ -18,14 +18,7 @@ from lurge_types.directory_report import DirectoryReport
 
 import db_config as config
 
-from directory_config import WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
-
-
-# Regexs for File Types
-BAM = re.compile("\.(bam|sam)(\.gz)?$")
-CRAM = re.compile("\.cram(\.gz)?$")
-VCF = re.compile("\.(vcf|bcf|gvcf)(\.gz)?$")
-PEDBED = re.compile("\.(ped|bed)(\.gz)?$")
+from directory_config import FILETYPES, WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
 
 
 def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int, logger: logging.Logger) -> T.Dict[str, DirectoryReport]:
@@ -41,10 +34,10 @@ def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str
         {
             "/lustre/scratch123/teams/hgi/project_abc": DirectoryReport{
                 size: 12345,
-                bam: 0,
-                cram: 0,
-                vcf: 100,
-                pedbed: 0,
+                filetypes: {
+                    "BAM": 12345,
+                    "CRAM": 123
+                },
                 num_files = 5600,
                 mtime = 1631019126,
                 pi = "PI Name",
@@ -190,25 +183,11 @@ def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str
                         directory_reports[parent].mtime = mtime
 
                 # Filetype Sizes
-                if BAM.search(short_path):
-                    directory_reports[directory].bam += size
-                    for parent in utils.finder.getParents(directory):
-                        directory_reports[parent].bam += size
-
-                elif CRAM.search(short_path):
-                    directory_reports[directory].cram += size
-                    for parent in utils.finder.getParents(directory):
-                        directory_reports[parent].cram += size
-
-                elif VCF.search(short_path):
-                    directory_reports[directory].vcf += size
-                    for parent in utils.finder.getParents(directory):
-                        directory_reports[parent].vcf += size
-
-                elif PEDBED.search(short_path):
-                    directory_reports[directory].pedbed += size
-                    for parent in utils.finder.getParents(directory):
-                        directory_reports[parent].pedbed += size
+                for filetype, regex in FILETYPES.items():
+                    if re.compile(regex).search(short_path):
+                        directory_reports[directory].filetypes[filetype] += size
+                        for parent in utils.finder.getParents(directory):
+                            directory_reports[parent].filetypes[filetype] += size
 
     return directory_reports
 
@@ -266,10 +245,10 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
         # Printing to stdout
         print("Last modified is relative to wrstat, so may be a few days off")
         if (mode == "project" and header):
-            print("Project\tDirectory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
+            print(f"Project\tDirectory\tTotal\t{'\t'.join(FILETYPES.keys())}\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
         elif (mode == "general" and header):
             print(
-                "Directory\tTotal\tBAM\tCRAM\tVCF\tPED/BED\tFiles\tLast Modified (days)")
+                f"Directory\tTotal\t{'\t'.join(FILETYPES.keys())}\tFiles\tLast Modified (days)")
 
         for volume in directories_info:
             utils.table.print_table(

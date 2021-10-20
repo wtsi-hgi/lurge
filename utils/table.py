@@ -29,17 +29,16 @@ def print_table(directory_info: T.Dict[str, DirectoryReport], volume: str, mode:
         _mtime = round((wrstat_date - directory_info[key].mtime)/86400, 1)
 
         _size = humanise(directory_info[key].size)
-        _bam = humanise(directory_info[key].bam)
-        _cram = humanise(directory_info[key].cram)
-        _vcf = humanise(directory_info[key].vcf)
-        _pedbed = humanise(directory_info[key].pedbed)
+        for filetype, size in directory_info[key].filetypes:
+            directory_info[key].filetypes[filetype] = humanise(size)
 
         _unix_group = directory_info[key].group_name
         _pi = directory_info[key].pi
         _volume = directory_info[key].scratch_disk[-3:]
 
+        # N.B. there's nothing confirming this is in the correct order
         if mode == "project":
-            print(f"{_project}\t{_path}\t{_size}\t{_bam}\t{_cram}\t{_vcf}\t{_pedbed}\t{_files}\t{_mtime}\t{_pi}\t{_unix_group}\t{_volume}")
+            print(f"{_project}\t{_path}\t{_size}\t{'\t'.join(directory_info[key].filetypes.values())}\t{_files}\t{_mtime}\t{_pi}\t{_unix_group}\t{_volume}")
         elif mode == "general":
             print(
-                f"{key}\t{_size}\t{_bam}\t{_cram}\t{_vcf}\t{_pedbed}\t{_files}\t{_mtime}")
+                f"{key}\t{_size}\t{'\t'.join(directory_info[key].filetypes.values())}\t{_files}\t{_mtime}")

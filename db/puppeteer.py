@@ -20,7 +20,8 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
     # ACTIONS WILL NOT BE ADDED LATER
     # We only care about those already in the DB
 
-    _, groups, volumes, actions, users = db.foreign.get_db_foreign_keys(conn)
+    _, groups, volumes, actions, users, _ = db.foreign.get_db_foreign_keys(
+        conn)
 
     # Now, we're going to go through all the VaultReports and add each as a DB record
     for volume, reports in vault_reports:

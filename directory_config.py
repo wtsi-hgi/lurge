@@ -53,6 +53,15 @@ ALL_PROJECTS = {
     "123": ["lustre/scratch123/hgi/mdt[0-9]/projects", "lustre/scratch123/hgi/mdt[0-9]/teams"]
 }
 
+# Filetypes
+# This is {what it should display as: the regex to match}
+FILETYPES = {
+    "BAM": "\.(bam|sam)(\.gz)?$",
+    "CRAM": "\.(cram)(\.gz)?$",
+    "VCF": "\.(vcf|bcf|gvcf)(\.gz)?$",
+    "PEDBED": "\.(ped|bed)(\.gz)?$"
+}
+
 
 class Treeserve:
     # Group Splitter Treeserve Info
