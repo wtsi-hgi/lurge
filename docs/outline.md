@@ -20,6 +20,7 @@
     - reads wrstat filename to determine volume
     - deserialises group table into memory
     - iterates over the wrstat file, accumalating group data into memory. this is stored in GroupReport objects (`lurge_types/group_report.py`)
+        - it checks each record to see if it starts with a filepath defined in the PSEUDO_GROUPS config. If so, it overwrites the group on the record with the pseudo group. This allows us to get data sorted by filepath instead of by group, and any downstream code doesn't care.
     - for each group accumalated:
       - fill in blanks from ldap if neccesary
       - attempt to get quota and consumption by running `lfs quota`
@@ -48,6 +49,7 @@
     - iterates over every line in the wrstat
         - if the path doesn't contain a directory we care about, we skip it
         - if we're in a `users` directory, go one level deeper
+        - if the path matches a path required for a pseudo group, we'll set the group and pi to that of the pseudo group
         - if we have a directory:
             - find out the pi and group name
             - if the directory isn't already in our reports, add it and all its parents

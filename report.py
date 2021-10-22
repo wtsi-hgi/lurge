@@ -1,3 +1,4 @@
+import base64
 from itertools import repeat
 from lurge_types.group_report import GroupReport
 import os
@@ -18,7 +19,7 @@ import utils.tsv
 
 import db_config as config
 
-from directory_config import WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
+from directory_config import PSEUDO_GROUPS, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
 
 
 def scanDirectory(directory: str) -> T.Optional[str]:
@@ -64,6 +65,8 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     for gid, group_name in ldap_groups.items():
         groups[str(gid)] = GroupReport(
             str(gid), group_name, ldap_pis[gid], volume)
+    for gid, group_name, pi in PSEUDO_GROUPS.values():
+        groups[str(gid)] = GroupReport(str(gid), group_name, pi, volume)
 
     lines_processed = 0
     logger.info("Opening {} for reading...".format(wr_file))
@@ -84,6 +87,11 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
             line = line.split()
 
             gid = line[3]
+            file_path = base64.b64decode(line[0]).decode("UTF-8", "replace")
+            for psuedo_group_path in PSEUDO_GROUPS.keys():
+                if file_path.startswith(psuedo_group_path):
+                    gid = str(PSEUDO_GROUPS[psuedo_group_path][0])
+
             try:
                 try:
                     groups[gid].usage += int(
@@ -178,7 +186,7 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     return (volume, group_data)
 
 
-def main() -> None:
+def main(start_days_ago: int = 0) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
@@ -192,7 +200,7 @@ def main() -> None:
 
     for volume in VOLUMES:
         latest_wr = utils.finder.findReport(
-            f"scratch{volume}", WRSTAT_DIR, logger)
+            f"scratch{volume}", WRSTAT_DIR, logger, start_days_ago)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
