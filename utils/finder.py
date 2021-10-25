@@ -7,11 +7,10 @@ import typing as T
 from directory_config import MAX_DAYS_AGO
 
 
-def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Logger] = None):
+def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Logger] = None, days_ago: int = 0):
     def _mtime(f):
         return os.stat(f).st_mtime
 
-    days_ago = 0
     volume = scratch_disk[-3:]
     while days_ago < MAX_DAYS_AGO:
         date = datetime.date.today() - datetime.timedelta(days=days_ago)

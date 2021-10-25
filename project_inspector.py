@@ -18,7 +18,9 @@ from lurge_types.directory_report import DirectoryReport
 
 import db_config as config
 
-from directory_config import FILETYPES, WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
+
+from directory_config import FILETYPES, PSEUDO_GROUPS, WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
+
 
 
 def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int, logger: logging.Logger) -> T.Dict[str, DirectoryReport]:
@@ -114,13 +116,19 @@ def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str
 
             directory = "/".join(_dir[:_depth])
 
+            group = None
+            pi = None
+            for pseudo_group_path in PSEUDO_GROUPS.keys():
+                if entry_path.startswith(pseudo_group_path.strip("/")):
+                    group = str(PSEUDO_GROUPS[pseudo_group_path][1])
+                    pi = str(PSEUDO_GROUPS[pseudo_group_path][2])
+                    break
+            else:
+                pi = humgen_pis.get(line_info[3])
+                group = humgen_groups.get(line_info[3])
+
             # Directory
             if line_info[7] == "d":
-
-                pi = humgen_pis[line_info[3]
-                                ] if line_info[3] in humgen_pis else None
-                group = humgen_groups[line_info[3]
-                                      ] if line_info[3] in humgen_groups else None
 
                 # Create entries for the directory, and all parent directories
                 if directory not in directory_reports:
@@ -144,11 +152,6 @@ def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str
                     size = int(size / links)
                 except ZeroDivisionError:
                     continue
-
-                pi = humgen_pis[line_info[3]
-                                ] if line_info[3] in humgen_pis else None
-                group = humgen_groups[line_info[3]
-                                      ] if line_info[3] in humgen_groups else None
 
                 # Create entry for file and all parent directories
                 if directory not in directory_reports:
