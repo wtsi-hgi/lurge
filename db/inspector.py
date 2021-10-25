@@ -70,7 +70,8 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             directory_info[key].size = round(directory_info[key].size, 2)
 
             for filetype, size in directory_info[key].filetypes.items():
-                directory_info[key].filetypes[filetype] = round(size / SCALING_FACTOR, 2)
+                directory_info[key].filetypes[filetype] = round(
+                    size / SCALING_FACTOR, 2)
 
             _unix_group = directory_info[key].group_name
             _pi = directory_info[key].pi

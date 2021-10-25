@@ -22,7 +22,6 @@ import db_config as config
 from directory_config import FILETYPES, PSEUDO_GROUPS, WRSTAT_DIR, PROJECT_DIRS, ALL_PROJECTS, LOGGING_CONFIG
 
 
-
 def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str, str], T.Dict[str, str]], depth: int, logger: logging.Logger) -> T.Dict[str, DirectoryReport]:
     """Processes a wrstat file and gives us the detailed directory info
 
@@ -250,7 +249,8 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
         print("Last modified is relative to wrstat, so may be a few days off")
         if (mode == "project" and header):
-            print(f"Project\tDirectory\tTotal\t{filetype_headers}\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
+            print(
+                f"Project\tDirectory\tTotal\t{filetype_headers}\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
         elif (mode == "general" and header):
             print(
                 f"Directory\tTotal\t{filetype_headers}\tFiles\tLast Modified (days)")
