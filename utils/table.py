@@ -37,8 +37,9 @@ def print_table(directory_info: T.Dict[str, DirectoryReport], volume: str, mode:
         _volume = directory_info[key].scratch_disk[-3:]
 
         # N.B. there's nothing confirming this is in the correct order
+        filetype_values: str = "\t".join(directory_info[key].filetypes.values())
         if mode == "project":
-            print(f"{_project}\t{_path}\t{_size}\t{'\t'.join(directory_info[key].filetypes.values())}\t{_files}\t{_mtime}\t{_pi}\t{_unix_group}\t{_volume}")
+            print(f"{_project}\t{_path}\t{_size}\t{filetype_values}\t{_files}\t{_mtime}\t{_pi}\t{_unix_group}\t{_volume}")
         elif mode == "general":
             print(
-                f"{key}\t{_size}\t{'\t'.join(directory_info[key].filetypes.values())}\t{_files}\t{_mtime}")
+                f"{key}\t{_size}\t{filetype_values}\t{_files}\t{_mtime}")

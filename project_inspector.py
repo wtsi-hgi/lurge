@@ -243,12 +243,14 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
             db_conn, directories_info, volume, WRSTAT_DIR, logger)
     else:
         # Printing to stdout
+        filetype_headers: str = "\t".join(FILETYPES.keys())
+
         print("Last modified is relative to wrstat, so may be a few days off")
         if (mode == "project" and header):
-            print(f"Project\tDirectory\tTotal\t{'\t'.join(FILETYPES.keys())}\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
+            print(f"Project\tDirectory\tTotal\t{filetype_headers}\tFiles\tLast Modified (days)\tPI\tUnix Group\tVolume")
         elif (mode == "general" and header):
             print(
-                f"Directory\tTotal\t{'\t'.join(FILETYPES.keys())}\tFiles\tLast Modified (days)")
+                f"Directory\tTotal\t{filetype_headers}\tFiles\tLast Modified (days)")
 
         for volume in directories_info:
             utils.table.print_table(
