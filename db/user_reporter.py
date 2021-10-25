@@ -20,7 +20,7 @@ def load_user_reports_to_db(
 
     # First, we'll get all the foreign keys
 
-    _, groups, volumes, _, users = db.foreign.get_db_foreign_keys(conn)
+    _, groups, volumes, _, users, _ = db.foreign.get_db_foreign_keys(conn)
 
     # Now, we'll go through every record (just like in the TSV generator) and
     # add a DB record for all of them

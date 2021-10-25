@@ -37,7 +37,8 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
     # First, get all the foreign keys for PIs, Volumes and Groups
     # We'll also add any that don't exist later
-    pis, groups, volumes, _, _ = db.foreign.get_db_foreign_keys(db_conn)
+    pis, groups, volumes, _, _, filetypes = db.foreign.get_db_foreign_keys(
+        db_conn)
 
     # Now, we'll go onto the above plan
 
@@ -64,11 +65,13 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             _files = directory_info[key].num_files
             _mtime = round((wrstat_date - directory_info[key].mtime)/86400, 1)
 
-            _size = round(directory_info[key].size / SCALING_FACTOR, 2)
-            _bam = round(directory_info[key].bam / SCALING_FACTOR, 2)
-            _cram = round(directory_info[key].cram / SCALING_FACTOR, 2)
-            _vcf = round(directory_info[key].vcf / SCALING_FACTOR, 2)
-            _pedbed = round(directory_info[key].pedbed / SCALING_FACTOR, 2)
+            # We're going to scale and round all our sizes
+            directory_info[key].size /= SCALING_FACTOR
+            directory_info[key].size = round(directory_info[key].size, 2)
+
+            for filetype, size in directory_info[key].filetypes.items():
+                directory_info[key].filetypes[filetype] = round(
+                    size / SCALING_FACTOR, 2)
 
             _unix_group = directory_info[key].group_name
             _pi = directory_info[key].pi
@@ -119,7 +122,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                 _project,
                 _path,
                 _files,
-                _size,
+                directory_info[key].size,
                 _mtime,
                 db_pi,
                 volumes[_volume],
@@ -130,20 +133,14 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
             new_id = cursor.lastrowid
 
             # Add the file sizes
-            # Although these are in the DB with foreign keys, we'll hardcode them here
+            for filetype, size in directory_info[key].filetypes.items():
+                if filetype not in filetypes:
+                    cursor.execute(
+                        f"INSERT INTO {SCHEMA}.filetype (filetype_name) VALUES (%s);", (filetype,))
+                    filetypes[filetype] = cursor.lastrowid
 
-            """
-            Key Filetype
-            1   BAM
-            2   CRAM
-            3   VCF
-            4   PEDBED
-            """
-
-            cursor.execute(f"""INSERT INTO {SCHEMA}.file_size (directory_id, filetype_id, size) 
-            VALUES (%s, %s, %s), (%s, %s, %s), (%s, %s, %s), (%s, %s, %s);""", (
-                new_id, 1, _bam, new_id, 2, _cram, new_id, 3, _vcf, new_id, 4, _pedbed
-            ))
+                cursor.execute(f"""INSERT INTO {SCHEMA}.file_size (directory_id, filetype_id, size)
+                VALUES (%s, %s, %s);""", (new_id, filetypes[filetype], size))
 
             db_conn.commit()
 

@@ -9,6 +9,7 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
     T.Union[T.Dict[str, int], T.DefaultDict[str, T.Dict[int, int]]],
     T.Dict[str, int],
     T.Dict[str, int],
+    T.Dict[str, int],
     T.Dict[str, int]
 ]:
     """Get all the foreign keys from the database
@@ -70,4 +71,10 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: b
     for user_id, user_name in user_results:
         users[user_name] = user_id
 
-    return pis, groups, volumes, actions, users
+    # Filetypes
+    cursor.execute(f"SELECT * FROM {SCHEMA}.filetype")
+    filetype_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
+    filetypes: T.Dict[str, int] = {
+        filetype: filetype_id for filetype_id, filetype in filetype_results}
+
+    return pis, groups, volumes, actions, users, filetypes
