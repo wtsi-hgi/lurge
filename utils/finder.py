@@ -15,7 +15,8 @@ def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Lo
     while days_ago < MAX_DAYS_AGO:
         date = datetime.date.today() - datetime.timedelta(days=days_ago)
         matching_files = glob.glob(
-            f"{report_dir}{date.strftime('%Y%m%d')}_scratch{volume}.*.*.stats.gz")
+            f"{report_dir}{date.strftime('%Y%m%d')}_scratch{volume}.*.*.stats.gz") # wrstat
+            # f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.*.*.stats.gz") # mpistat
         if len(matching_files) == 0:
             days_ago += 1
         else:
