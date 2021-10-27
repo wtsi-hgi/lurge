@@ -14,4 +14,4 @@
 source /usr/local/lsf/conf/profile.lsf
 declare REPORT_DIR="/lustre/scratch115/teams/hgi/lustre-usage/"
 
-bsub -J "lurge[1-100]%5" -o "${REPORT_DIR}"new-lurge/report-logs/"$(date '+%Y-%m-%d')".%J.%I.out -e "${REPORT_DIR}"new-lurge/report-logs/"$(date '+%Y-%m-%d')".%J.err -G hgi -R "select[mem>3000] rusage[mem=3000] span[hosts=1]" -M 3000 -n 1 "${REPORT_DIR}.lurge_env/bin/python3 ${REPORT_DIR}new-lurge-dev/lurge/backfill.pyx \$LSB_JOBINDEX"
+bsub -J "lurge[1-100]%1" -o "${REPORT_DIR}"new-lurge/report-logs/"$(date '+%Y-%m-%d')".%J.%I.out -e "${REPORT_DIR}"new-lurge/report-logs/"$(date '+%Y-%m-%d')".%J.err -G hgi -R "select[mem>3000] rusage[mem=3000] span[hosts=1]" -M 3000 -n 1 "${REPORT_DIR}.lurge_env/bin/python3 ${REPORT_DIR}new-lurge-dev/lurge/backfill.pyx \$LSB_JOBINDEX"

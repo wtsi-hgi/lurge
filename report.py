@@ -59,7 +59,8 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
         , ...] 
     """
 
-    volume = wr_file.split('/')[-1].split('.')[0].split('_')[1]
+    volume = wr_file.split('/')[-1].split('.')[0].split('_')[1] # wrstat
+    # volume = "scratch" + wr_file.split('/')[-1].split('.')[0].split('_')[1] # mpistat
 
     groups: T.Dict[str, GroupReport] = {}
     for gid, group_name in ldap_groups.items():
