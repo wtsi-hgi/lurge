@@ -103,10 +103,6 @@ def get_directory_info_from_wrstat(paths: T.List[str], names: T.Tuple[T.Dict[str
 
             _dir = short_path.split("/")[:-1]
 
-            # Just use the directory if its a file
-            if line_info[7] == "f":
-                _dir = _dir[:-1]
-
             # Go a level deeper if users directory
             try:
                 _depth = depth + 1 if _dir[2].lower() == "users" else depth
