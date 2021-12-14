@@ -49,7 +49,7 @@ PROJECT_DIRS = {
 ALL_PROJECTS = {
     '114': ["lustre/scratch114/projects", "lustre/scratch114/teams"],
     '115': ["lustre/scratch115/realdata/mdt[0-9]/projects", "lustre/scratch115/realdata/mdt[0-9]/teams"],
-    "116": ["lustre/scratch116/casm"],
+    "116": ["lustre/scratch116/casm/team113"],
     '118': ["lustre/scratch118/humgen/hgi/projects", "lustre/scratch118/humgen/old-team-data"],
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", "lustre/scratch119/realdata/mdt[0-9]/teams"],
     "123": ["lustre/scratch123/hgi/mdt[0-9]/projects", "lustre/scratch123/hgi/mdt[0-9]/teams"]
