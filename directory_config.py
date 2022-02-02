@@ -1,8 +1,8 @@
 # Global Config
-WRSTAT_DIR = "//lustre/scratch124/admin/team94/isgbot/wrstat/output/"
-REPORT_DIR = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/"
+WRSTAT_DIR = "/lustre/scratch124/admin/team94/isgbot/wrstat/output/"
+REPORT_DIR = "/lustre/scratch119/humgen/teams/hgi/lurge/lurge/"
 VOLUMES = [114, 115, 116, 118, 119, 123]
-LOGGING_CONFIG = "/lustre/scratch115/teams/hgi/lustre-usage/new-lurge/lurge/logging.conf"
+LOGGING_CONFIG = "/lustre/scratch119/humgen/teams/hgi/lurge/lurge/lurge/logging.conf"
 
 
 # Manager Config
