@@ -17,5 +17,3 @@ Group Splitter takes mpistat output files and splits them by the Unix group of t
 5. Run `manager.py {report|inspector|puppeteer|users|splitter}`
 
 See `docs/` for more information
-
-*group_splitter not changed August 2021* 
