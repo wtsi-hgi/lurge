@@ -1,7 +1,7 @@
 # Global Config
 WRSTAT_DIR = "/lustre/scratch124/admin/team94/isgbot/wrstat/output/"
 REPORT_DIR = "/lustre/scratch119/humgen/teams/hgi/lurge/lurge/"
-VOLUMES = [114, 115, 116, 117, 118, 119, 123, 124]
+VOLUMES = [117, 118, 119, 123, 124]
 LOGGING_CONFIG = "/lustre/scratch119/humgen/teams/hgi/lurge/lurge/lurge/logging.conf"
 
 
@@ -12,9 +12,6 @@ MAX_DAYS_AGO = 10
 # Reporter Config
 # directories with group directories to scan for .imirrored
 GROUP_DIRECTORIES = {
-    'scratch114': ["/lustre/scratch114/teams/", "/lustre/scratch114/projects/"],
-    'scratch115': ["/lustre/scratch115/teams/", "/lustre/scratch115/projects/"],
-    "scratch116": ["/lustre/scratch116/humgen/teams", "/lustre/scratch116/humgen/projects"],
     "scratch117": ["/lustre/scratch117/casm", "/lustre/scratch117/casm"],
     'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
                    "/lustre/scratch118/humgen/hgi/projects/"],
@@ -39,9 +36,7 @@ WARNINGS = {
 # redirects to actual storage locations
 # also used in puppeteer config
 PROJECT_DIRS = {
-    'lustre/scratch115/projects': 'lustre/scratch115/realdata/mdt[0-9]/projects',
     'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
-    'lustre/scratch115/teams': 'lustre/scratch115/realdata/mdt[0-9]/teams',
     'lustre/scratch119/humgen/teams': 'lustre/scratch119/realdata/mdt[0-9]/teams',
     "lustre/scratch119/casm": "lustre/scratch119/realdata/mdt[0-9]/casm",
     "lustre/scratch123/hgi/projects": "lustre/scratch123/hgi/mdt[0-9]/projects",
@@ -50,9 +45,6 @@ PROJECT_DIRS = {
 
 # where to search if no specific path given
 ALL_PROJECTS = {
-    '114': ["lustre/scratch114/projects", "lustre/scratch114/teams"],
-    '115': ["lustre/scratch115/realdata/mdt[0-9]/projects", "lustre/scratch115/realdata/mdt[0-9]/teams"],
-    "116": ["lustre/scratch116/casm/team113"],
     "117": ["lustre/scratch117/casm/team113"],
     '118': ["lustre/scratch118/humgen/hgi/projects", "lustre/scratch118/humgen/old-team-data"],
     '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", 
@@ -106,7 +98,6 @@ MAX_LINES_PER_GROUP_PER_VOLUME = 50
 # Group Names CANNOT be the same as an already existing group
 # becuase it creates conflicts
 PSEUDO_GROUPS = {
-    "/lustre/scratch116/casm/team113": (-1, "team113-116", "Team 113"),
     "/lustre/scratch117/casm/team113": (-1, "team113-116", "Team 113"),
     "/lustre/scratch119/realdata/mdt1/team113": (-1, "team113-116", "Team 113"),
     "/lustre/scratch124/casm/team113": (-1, "team113-116", "Team 113")
