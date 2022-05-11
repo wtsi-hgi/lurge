@@ -1,9 +1,10 @@
+import os
+
 # Global Config
 WRSTAT_DIR = "/lustre/scratch123/admin/team94/wrstat/output/"
-REPORT_DIR = "/lustre/scratch119/humgen/teams/hgi/lurge/lurge/"
+REPORT_DIR = os.getenv("REPORT_DIR") + "/"
 VOLUMES = [117, 118, 119, 123, 124]
-LOGGING_CONFIG = "/lustre/scratch119/humgen/teams/hgi/lurge/lurge/lurge/logging.conf"
-
+LOGGING_CONFIG="/software/hgi/installs/lurge/etc/logging.conf"
 
 # Manager Config
 # max number of days ago to search for wrstat
