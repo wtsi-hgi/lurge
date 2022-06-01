@@ -11,16 +11,15 @@ def get_all_historical_usage_data(conn: mysql.connector.MySQLConnection) -> T.De
 
     cursor = conn.cursor()
     cursor.execute(f"""
-    SELECT used, record_date, group_name, pi_name, scratch_disk 
+    SELECT used, record_date, group_name, pi_name 
     FROM {SCHEMA}.lustre_usage
     INNER JOIN unix_group ug on lustre_usage.unix_id = ug.group_id
     INNER JOIN pi USING (pi_id)
-    INNER JOIN volume USING (volume_id)
     ORDER BY record_date ASC 
     """)
 
     history_results = cursor.fetchall()
-    for usage, date, group, pi, volume in history_results:
-        all_history[ReportIdentifier(group, pi, volume)].append((date, usage))
+    for usage, date, group, pi in history_results:
+        all_history[ReportIdentifier(group, pi, 'scratch119')].append((date, usage))
 
     return all_history

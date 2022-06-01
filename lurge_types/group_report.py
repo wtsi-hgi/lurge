@@ -9,19 +9,12 @@ from . import ReportIdentifier
 
 
 class GroupReport:
-    @staticmethod
-    def create_non_humgen(gid, volume, usage, last_modified):
-        gr = GroupReport(gid, None, None, volume)
-        gr.usage = usage
-        gr.last_modified = last_modified
-        return gr
-
     def __init__(self, gid: str, group_name: T.Optional[str], pi_name: T.Optional[str], volume: str):
         self.gid: str = gid
         self.group_name: T.Optional[str] = group_name
         self.pi_name: T.Optional[str] = pi_name
         self.usage: int = 0
-        self.quota: int = None
+        self.quota: T.Optional[int] = None
         self.last_modified: int = 0
         self.volume: str = volume
         self.isHumgen: bool = True
@@ -33,7 +26,7 @@ class GroupReport:
         self._date: datetime.date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-    def calculate_last_modified_rel(self, wrstat_time):
+    def calculate_last_modified_rel(self, wrstat_time: int) -> None:
         self.last_modified_rel = max(0, (wrstat_time - self.last_modified) // 86400)
 
     @property
@@ -46,7 +39,7 @@ class GroupReport:
 
     @property
     def warning(self) -> T.Optional[int]:
-        def _prediction(history, days_from_now) -> int:
+        def _prediction(history: T.List[T.Tuple[datetime.date, int]], days_from_now: int) -> float:
             points = min(len(history), 2)
             if points == 0:
                 return self.usage
@@ -56,7 +49,7 @@ class GroupReport:
                 delta_past_2 = (datetime.datetime.today(
                 ).date() - history[-points][0]).days
 
-                prediction = self.usage + ((days_from_now + delta_past_1)/(
+                prediction: float = self.usage + ((days_from_now + delta_past_1)/(
                     delta_past_2 - delta_past_1)) * (self.usage - history[-points][1])
                 return prediction
 

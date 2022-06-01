@@ -22,7 +22,7 @@ def getSQLConnection(config) -> mysql.connector.MySQLConnection:
 
 def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime.date, volume: int, logger: logging.Logger) -> bool:
     # Checks the dates in the DB table to see if the date already has data for that particular volume
-
+    return False
     cursor = conn.cursor(buffered=True)
     cursor.execute(
         f"""SELECT DISTINCT record_date FROM {SCHEMA}.{table}

@@ -9,8 +9,6 @@ import multiprocessing
 import gzip
 import typing as T
 
-import ldap
-
 import db.common
 import db.report
 import utils.finder
@@ -19,22 +17,22 @@ import utils.tsv
 
 import db_config as config
 
-from directory_config import PSEUDO_GROUPS, WRSTAT_DIR, REPORT_DIR, VOLUMES, GROUP_DIRECTORIES, LOGGING_CONFIG
+from directory_config import PSEUDO_GROUPS, WRSTAT_DIR, REPORT_DIR, VOLUMES, LOGGING_CONFIG
 
 
-def scanDirectory(directory: str) -> T.Optional[str]:
-    """
-    process_wrstat helper function. Scans 'directory' for .imirrored, and returns
-    the directory if it was found and None otherwise.
+# def scanDirectory(directory: str) -> T.Optional[str]:
+#     """
+#     process_wrstat helper function. Scans 'directory' for .imirrored, and returns
+#     the directory if it was found and None otherwise.
 
-    :param directory: Directory to scan
-    """
-    with os.scandir(directory) as items:
-        for item in items:
-            if item.name == ".imirrored":
-                return directory
+#     :param directory: Directory to scan
+#     """
+#     with os.scandir(directory) as items:
+#         for item in items:
+#             if item.name == ".imirrored":
+#                 return directory
 
-    return None
+#     return None
 
 
 def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_groups: T.Dict[str, str], logger: logging.Logger) -> T.Tuple[str, T.List[GroupReport]]:
@@ -62,12 +60,15 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     volume = wr_file.split('/')[-1].split('.')[0].split('_')[1] # wrstat
     # volume = "scratch" + wr_file.split('/')[-1].split('.')[0].split('_')[1] # mpistat
 
-    groups: T.Dict[str, GroupReport] = {}
-    for gid, group_name in ldap_groups.items():
-        groups[str(gid)] = GroupReport(
-            str(gid), group_name, ldap_pis[gid], volume)
-    for gid, group_name, pi in PSEUDO_GROUPS.values():
-        groups[str(gid)] = GroupReport(str(gid), group_name, pi, volume)
+    reports: T.Dict[T.Tuple[str, str], GroupReport] = {}
+    baes_directory_info = utils.finder.read_base_directories("somepath") # TODO
+    for grp_dir in baes_directory_info:
+        reports[grp_dir] = GroupReport(
+            gid=grp_dir[0],
+            group_name = ldap_groups[grp_dir[0]],
+            pi_name = ldap_pis[grp_dir[0]],
+            volume=volume
+        )
 
     lines_processed = 0
     logger.info("Opening {} for reading...".format(wr_file))
@@ -93,34 +94,33 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
                 if file_path.startswith(psuedo_group_path):
                     gid = str(PSEUDO_GROUPS[psuedo_group_path][0])
 
-            try:
-                try:
-                    groups[gid].usage += int(
-                        int(line[1]) / int(line[9]))
-                except ZeroDivisionError:
-                    # This should almost never happen, but it did! Looks like a
-                    # file can get 'stat'ed in the middle of being deleted,
-                    # which makes it show a hard link count of 0.
-                    pass
+            for grp_dir in baes_directory_info:
+                if grp_dir[0] == gid and file_path.startswith(grp_dir[1]):
+                    key = grp_dir
+                    break
+            else:
+                # group/base file pairing not in wrstat's output
+                continue
 
-                try:
-                    # only update the group's last edit time if it's more recent
-                    if (int(line[5]) > groups[gid].last_modified):
-                        # make sure the timestamp isn't in the future
-                        now = datetime.datetime.now()
-                        now_unix = int(datetime.datetime.timestamp(now))
-                        if(now_unix > int(line[5])):
-                            groups[gid].last_modified = int(line[5])
-                except ValueError:
-                    continue
-            except KeyError:
-                # the first time the group appears, add it to the dictionary
-                # its name will be found later
-                try:
-                    groups[gid] = GroupReport.create_non_humgen(
-                        str(gid), volume, int(line[1]), int(line[5]))
-                except IndexError:
-                    continue
+            try:
+                reports[key].usage += int(
+                    int(line[1]) / int(line[9]))
+            except ZeroDivisionError:
+                # This should almost never happen, but it did! Looks like a
+                # file can get 'stat'ed in the middle of being deleted,
+                # which makes it show a hard link count of 0.
+                pass
+
+            try:
+                # only update the group's last edit time if it's more recent
+                if (int(line[5]) > reports[key].last_modified):
+                    # make sure the timestamp isn't in the future
+                    now = datetime.datetime.now()
+                    now_unix = int(datetime.datetime.timestamp(now))
+                    if(now_unix > int(line[5])):
+                        reports[key].last_modified = int(line[5])
+            except ValueError:
+                continue
 
             lines_processed += 1
 
@@ -128,59 +128,65 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     # int() truncates away the sub-second measurements
     wrstat_date_unix = int(os.stat(wr_file).st_mtime)
     group_data: T.List[GroupReport] = []
-    for gid, group in groups.items():
-        # updates the group names for groups discovered during wrstat crawl
-        if group.group_name is None:
-            # connection times out too quickly to be declared elsewhere
-            ldap_con = utils.ldap.getLDAPConnection()
-            try:
-                result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                                           ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
-            except ValueError:
-                continue
-            try:
-                group.group_name = result[0][1]['cn'][0].decode('UTF-8')
-            except IndexError:
-                # nothing found in LDAP for this group id, skip the rest of
-                # this loop
-                continue
+    for report in reports.values():
+        # shouldn't be a situation like this anymore
+        # but left commented for now just in case
+        # can remove later
+
+        # # updates the group names for groups discovered during wrstat crawl
+        # if group.group_name is None:
+        #     # connection times out too quickly to be declared elsewhere
+        #     ldap_con = utils.ldap.getLDAPConnection()
+        #     try:
+        #         result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
+        #                                    ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
+        #     except ValueError:
+        #         continue
+        #     try:
+        #         group.group_name = result[0][1]['cn'][0].decode('UTF-8')
+        #     except IndexError:
+        #         # nothing found in LDAP for this group id, skip the rest of
+        #         # this loop
+        #         continue
 
         # let it calculate its last modified time relative to the wrstat file time
-        group.calculate_last_modified_rel(wrstat_date_unix)
+        report.calculate_last_modified_rel(wrstat_date_unix)
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
         # needs to be multiplied by 1024
         try:
-            group.quota = int(subprocess.check_output(["lfs", "quota", "-gq", group.group_name,
+            report.quota = int(subprocess.check_output(["lfs", "quota", "-gq", str(report.group_name),
                                                        "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
         except subprocess.CalledProcessError:
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error
             pass
 
-        # only check whether a volume is archived if it's smaller than 100MiB,
-        # any larger than that and it's very likely to still be in use
-        if (group.usage < 100*1024**2):
-            try:
-                group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
-                                                    group.group_name)
-            except FileNotFoundError:
-                pass
+        # can remove .imirrored check
+        # when we archive with shepherd it doesn't do this
+        # so is pretty worthless for anything used since moving
+        # from farm3 -> farm5
+        
+        # # only check whether a volume is archived if it's smaller than 100MiB,
+        # # any larger than that and it's very likely to still be in use
+        # if (group.usage < 100*1024**2):
+        #     try:
+        #         group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
+        #                                             group.group_name)
+        #     except FileNotFoundError:
+        #         pass
 
-            # only test the next directory if .imirrored wasn't already found
-            if group.archived_dirs is None:
-                try:
-                    group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
-                                                        group.group_name)
-                except FileNotFoundError:
-                    pass
-        if (group.usage == 0 and group.last_modified == 0):
-            # not a useful entry, ignore it
-            pass
-        else:
+        #     # only test the next directory if .imirrored wasn't already found
+        #     if group.archived_dirs is None:
+        #         try:
+        #             group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
+        #                                                 group.group_name)
+        #         except FileNotFoundError:
+        #             pass
 
-            group_data.append(group)
+        if report.usage != 0 or report.last_modified != 0:
+            group_data.append(report)
 
     logger.info("Processed data for {}.".format(volume))
 
@@ -232,6 +238,8 @@ def main(start_days_ago: int = 0) -> None:
     group_report_data: T.Dict[str, T.List[GroupReport]] = {}
     for volume, group_reports in wr_data:
         group_report_data[volume] = group_reports
+
+    print(group_report_data)
 
     date = datetime.date.today().strftime("%Y-%m-%d")
 

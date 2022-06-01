@@ -2,6 +2,7 @@ import datetime
 import glob
 import logging
 import os
+from pathlib import Path
 import typing as T
 
 from directory_config import MAX_DAYS_AGO
@@ -35,3 +36,11 @@ def getParents(directory: str) -> T.List[str]:
 
     split_dir = directory.split("/")
     return ["/".join(split_dir[:i]) for i in range(1, len(split_dir))]
+
+def read_base_directories(report_dir: Path) -> T.Set[T.Tuple[str, str]]:
+    with open("/lustre/scratch119/humgen/teams/hgi/users/mg38/small.tsv") as f: # TODO
+        # One Line is a Group:Base Directory Pairing
+        # (group being gid)
+        # there can be many groups to one base directory,
+        # and many base directories to one group
+        return {tuple(line.split("\t")) for line in f}
