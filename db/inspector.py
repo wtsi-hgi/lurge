@@ -37,7 +37,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
 
     # First, get all the foreign keys for PIs, Volumes and Groups
     # We'll also add any that don't exist later
-    pis, groups, volumes, _, _, filetypes = db.foreign.get_db_foreign_keys(
+    pis, groups, volumes, _, _, filetypes, _ = db.foreign.get_db_foreign_keys(
         db_conn)
 
     # Now, we'll go onto the above plan
@@ -97,10 +97,8 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, vol_dire
                     db_group = groups[_unix_group]
                 except KeyError:
                     cursor.execute(
-                        f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (_unix_group, 1))
-                    cursor.execute(
-                        f"SELECT group_id FROM {SCHEMA}.unix_group WHERE group_name = %s AND is_humgen = %s;", (_unix_group, 1))
-                    (new_group_id,) = cursor.fetchone()
+                        f"INSERT INTO {SCHEMA}.unix_group (group_name) VALUES (%s);", (_unix_group,))
+                    new_group_id: int = cursor.lastrowid
                     groups[_unix_group] = new_group_id
                     db_group = new_group_id
             else:

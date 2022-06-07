@@ -43,4 +43,4 @@ def read_base_directories(report_dir: Path) -> T.Set[T.Tuple[str, str]]:
         # (group being gid)
         # there can be many groups to one base directory,
         # and many base directories to one group
-        return {tuple(line.split("\t")) for line in f}
+        return {tuple(line.strip().split("\t")) for line in f}

@@ -21,7 +21,7 @@ def load_usage_report_to_sql(sql_db: mysql.connector.MySQLConnection, group_repo
     sql_cursor = sql_db.cursor()
 
     # First, get foreign keys from the MySQL database for PI, Volume and Unix Group
-    pis, groups, volumes, _, _, _ = db.foreign.get_db_foreign_keys(
+    pis, groups, volumes, _, _, _, base_directories = db.foreign.get_db_foreign_keys(
         sql_db, humgen_only=False)
 
     logger.info("Adding data to MySQL table")
@@ -41,11 +41,11 @@ def load_usage_report_to_sql(sql_db: mysql.connector.MySQLConnection, group_repo
             else:
                 pi = None
 
-            if report.group_name not in groups or report.isHumgen not in groups[report.group_name]:
+            if report.group_name not in groups:
                 sql_cursor.execute(
-                    f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (report.group_name, report.isHumgen))
-                group_id = sql_cursor.lastrowid
-                groups[report.group_name][report.isHumgen] = group_id
+                    f"INSERT INTO {SCHEMA}.unix_group (group_name) VALUES (%s);", (report.group_name,))
+                group_id: int = sql_cursor.lastrowid
+                groups[report.group_name] = group_id
 
             if volume not in volumes:
                 sql_cursor.execute(
@@ -53,19 +53,26 @@ def load_usage_report_to_sql(sql_db: mysql.connector.MySQLConnection, group_repo
                 volume_id = sql_cursor.lastrowid
                 volumes[volume] = volume_id
 
+            if report.base_path not in base_directories:
+                sql_cursor.execute(
+                    f"INSERT INTO {SCHEMA}.base_directory (directory_path, volume_id) VALUES (%s, %s);",
+                    (report.base_path, volumes[volume])
+                )
+                base_directory_id: int = sql_cursor.lastrowid
+                base_directories[report.base_path] = base_directory_id
+
             # Add our data
-            query = f"""INSERT INTO {SCHEMA}.lustre_usage (used, quota, record_date, archived,
-                last_modified, pi_id, unix_id, volume_id, warning_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);"""
+            query = f"""INSERT INTO {SCHEMA}.lustre_usage (used, quota, record_date,
+                last_modified, pi_id, unix_id, base_directory_id, warning_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
 
             sql_cursor.execute(query, (
                 report.usage,
                 report.quota,
                 wrstat_dates[int(volume[-3:])],
-                report.archived_dirs is not None,
                 report.last_modified_rel,
                 pi,
-                groups[report.group_name][report.isHumgen],
-                volumes[volume],
+                groups[report.group_name],
+                base_directories[report.base_path],
                 report.warning
             ))
 

@@ -1,5 +1,6 @@
 import csv
 from datetime import datetime
+from email.headerregistry import Group
 from lurge_types.group_report import GroupReport
 from directory_config import REPORT_DIR
 import logging
@@ -24,9 +25,7 @@ def createTsvReport(group_reports: T.Dict[str, T.List[GroupReport]], date: str, 
         report_writer = csv.writer(reportfile, delimiter="\t",
                                    quoting=csv.QUOTE_NONE)
         # write column headers
-        report_writer.writerow(["Lustre Volume", "PI", "Unix Group",
-                                "Used (bytes)", "Quota (bytes)",
-                                "Last Modified (days)", "Archived Directories", "Is Humgen?"])
+        report_writer.writerow(GroupReport.row_headers)
 
         logger.info("Adding data to tsv report")
         for volume, reports in group_reports.items():

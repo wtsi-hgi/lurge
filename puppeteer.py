@@ -138,7 +138,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 )
 
     ldap_conn = utils.ldap.getLDAPConnection()
-    _, group_info = utils.ldap.get_humgen_ldap_info(ldap_conn)
+    _, group_info = utils.ldap.get_groups_ldap_info(ldap_conn)
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 

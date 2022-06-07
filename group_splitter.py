@@ -90,7 +90,7 @@ def main(upload: bool = True) -> None:
     logger = logging.getLogger(__name__)
 
     ldap_conn = utils.ldap.getLDAPConnection()
-    _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
+    _, groups = utils.ldap.get_groups_ldap_info(ldap_conn)
 
     date_str = datetime.datetime.now().strftime("%Y%m%d")
 

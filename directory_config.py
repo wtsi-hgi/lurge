@@ -9,7 +9,7 @@ LOGGING_CONFIG="/software/hgi/installs/lurge/etc/logging.conf"
 
 # Manager Config
 # max number of days ago to search for wrstat
-MAX_DAYS_AGO = 10
+MAX_DAYS_AGO = 20
 
 # Reporter Config
 # directories with group directories to scan for .imirrored

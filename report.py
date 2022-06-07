@@ -65,6 +65,7 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     for grp_dir in baes_directory_info:
         reports[grp_dir] = GroupReport(
             gid=grp_dir[0],
+            path=grp_dir[1],
             group_name = ldap_groups[grp_dir[0]],
             pi_name = ldap_pis[grp_dir[0]],
             volume=volume
@@ -220,7 +221,7 @@ def main(start_days_ago: int = 0) -> None:
     ldap_con = utils.ldap.getLDAPConnection()
 
     logger.info("Collecting group information...")
-    pis, groups = utils.ldap.get_humgen_ldap_info(ldap_con)
+    pis, groups = utils.ldap.get_groups_ldap_info(ldap_con)
 
     logger.info("Starting wrstat processors...")
 
@@ -239,7 +240,7 @@ def main(start_days_ago: int = 0) -> None:
     for volume, group_reports in wr_data:
         group_report_data[volume] = group_reports
 
-    print(group_report_data)
+    print([x.row for y in group_report_data.values() for x in y])
 
     date = datetime.date.today().strftime("%Y-%m-%d")
 

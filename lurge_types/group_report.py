@@ -9,19 +9,21 @@ from . import ReportIdentifier
 
 
 class GroupReport:
-    def __init__(self, gid: str, group_name: T.Optional[str], pi_name: T.Optional[str], volume: str):
+
+    
+
+    def __init__(self, gid: str, path: str, group_name: T.Optional[str], pi_name: T.Optional[str], volume: str):
         self.gid: str = gid
+        self.base_path: str = path
         self.group_name: T.Optional[str] = group_name
         self.pi_name: T.Optional[str] = pi_name
         self.usage: int = 0
         self.quota: T.Optional[int] = None
         self.last_modified: int = 0
-        self.volume: str = volume
-        self.isHumgen: bool = True
-        self.archived_dirs: T.Optional[str] = None
+        self._volume: str = volume
 
         latest_wr = utils.finder.findReport(
-            volume, WRSTAT_DIR)
+            volume, WRSTAT_DIR) or ""
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         self._date: datetime.date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
@@ -29,13 +31,29 @@ class GroupReport:
     def calculate_last_modified_rel(self, wrstat_time: int) -> None:
         self.last_modified_rel = max(0, (wrstat_time - self.last_modified) // 86400)
 
+    row_headers: T.List[str] = [
+        "Top Level Path",
+        "PI",
+        "Group",
+        "Usage (bytes)",
+        "Quota (bytes)",
+        "Last Modified (days)"
+    ]
+
     @property
-    def row(self):
-        return [self.volume, self.pi_name, self.group_name, self.usage, self.quota, self.last_modified_rel, self.archived_dirs]
+    def row(self) -> T.List[T.Union[str, int, None]]:
+        return [
+            self.base_path,
+            self.pi_name,
+            self.group_name,
+            self.usage,
+            self.quota,
+            self.last_modified_rel
+        ]
 
     @property
     def id(self):
-        return ReportIdentifier(self.group_name, self.pi_name, self.volume)
+        return ReportIdentifier(self.group_name, self.pi_name, self._volume)
 
     @property
     def warning(self) -> T.Optional[int]:

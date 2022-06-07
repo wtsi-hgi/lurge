@@ -20,7 +20,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
     # ACTIONS WILL NOT BE ADDED LATER
     # We only care about those already in the DB
 
-    _, groups, volumes, actions, users, _ = db.foreign.get_db_foreign_keys(
+    _, groups, volumes, actions, users, _, _ = db.foreign.get_db_foreign_keys(
         conn)
 
     # Now, we're going to go through all the VaultReports and add each as a DB record
@@ -39,8 +39,8 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                     db_group = groups[vault.group]
                 except KeyError:
                     cursor.execute(
-                        f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (vault.group, 1))
-                    new_id = cursor.lastrowid
+                        f"INSERT INTO {SCHEMA}.unix_group (group_name) VALUES (%s);", (vault.group,))
+                    new_id: int = cursor.lastrowid
                     groups[vault.group] = new_id
                     db_group = new_id
             else:

@@ -101,7 +101,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
 
     # Get some information from LDAP
     ldap_conn = utils.ldap.getLDAPConnection()
-    _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
+    _, groups = utils.ldap.get_groups_ldap_info(ldap_conn)
 
     volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]] = {}
     for i, rep in enumerate(volumes_to_check):

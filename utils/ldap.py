@@ -10,10 +10,10 @@ def getLDAPConnection():
     return con
 
 
-def get_humgen_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]]:
+def get_groups_ldap_info(ldap_con) -> T.Tuple[T.Dict[str, str], T.Dict[str, str]]:
     # Ask the Sanger LDAP for Humgen Groups
     results: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-                                                             ldap.SCOPE_ONELEVEL, "(objectClass=sangerHumgenProjectGroup)",
+                                                             ldap.SCOPE_ONELEVEL, "(objectClass=*)",
                                                              ["gidNumber", "sangerProjectPI", "cn"])
 
     PIuids: T.Set[str] = set()

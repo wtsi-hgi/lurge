@@ -208,7 +208,7 @@ def main(depth: int = 2, mode: str = "project", header: bool = True, tosql: bool
 
     # LDAP Information
     ldap_con = utils.ldap.getLDAPConnection()
-    humgen_names = utils.ldap.get_humgen_ldap_info(ldap_con)
+    humgen_names = utils.ldap.get_groups_ldap_info(ldap_con)
 
     directories_info: T.Dict[str, T.Dict[str, DirectoryReport]] = {}
 
