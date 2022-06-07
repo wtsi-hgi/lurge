@@ -5,12 +5,9 @@ import typing as T
 import utils.finder
 
 from db import historical_usage
-from . import ReportIdentifier
 
 
 class GroupReport:
-
-    
 
     def __init__(self, gid: str, path: str, group_name: T.Optional[str], pi_name: T.Optional[str], volume: str):
         self.gid: str = gid
@@ -52,10 +49,6 @@ class GroupReport:
         ]
 
     @property
-    def id(self):
-        return ReportIdentifier(self.group_name, self.pi_name, self._volume)
-
-    @property
     def warning(self) -> T.Optional[int]:
         def _prediction(history: T.List[T.Tuple[datetime.date, int]], days_from_now: int) -> float:
             points = min(len(history), 2)
@@ -71,7 +64,7 @@ class GroupReport:
                     delta_past_2 - delta_past_1)) * (self.usage - history[-points][1])
                 return prediction
 
-        history = historical_usage[self.id]
+        history = historical_usage[(self.group_name, self.base_path)]
 
         prediction = max([DEFAULT_WARNING, *[level for level, criteria in WARNINGS.items() if True in map(
             lambda x: _prediction(history, x[0])/self.quota > x[1] if self.quota is not None and self.quota > 0 else 0, criteria)]])

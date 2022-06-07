@@ -20,21 +20,6 @@ import db_config as config
 from directory_config import PSEUDO_GROUPS, WRSTAT_DIR, REPORT_DIR, VOLUMES, LOGGING_CONFIG
 
 
-# def scanDirectory(directory: str) -> T.Optional[str]:
-#     """
-#     process_wrstat helper function. Scans 'directory' for .imirrored, and returns
-#     the directory if it was found and None otherwise.
-
-#     :param directory: Directory to scan
-#     """
-#     with os.scandir(directory) as items:
-#         for item in items:
-#             if item.name == ".imirrored":
-#                 return directory
-
-#     return None
-
-
 def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_groups: T.Dict[str, str], logger: logging.Logger) -> T.Tuple[str, T.List[GroupReport]]:
     """
     Processes a single wrstat output file and creates a list of GroupReports.
@@ -130,26 +115,6 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     wrstat_date_unix = int(os.stat(wr_file).st_mtime)
     group_data: T.List[GroupReport] = []
     for report in reports.values():
-        # shouldn't be a situation like this anymore
-        # but left commented for now just in case
-        # can remove later
-
-        # # updates the group names for groups discovered during wrstat crawl
-        # if group.group_name is None:
-        #     # connection times out too quickly to be declared elsewhere
-        #     ldap_con = utils.ldap.getLDAPConnection()
-        #     try:
-        #         result = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
-        #                                    ldap.SCOPE_ONELEVEL, "(gidNumber={})".format(gid), ["cn"])
-        #     except ValueError:
-        #         continue
-        #     try:
-        #         group.group_name = result[0][1]['cn'][0].decode('UTF-8')
-        #     except IndexError:
-        #         # nothing found in LDAP for this group id, skip the rest of
-        #         # this loop
-        #         continue
-
         # let it calculate its last modified time relative to the wrstat file time
         report.calculate_last_modified_rel(wrstat_date_unix)
 
@@ -163,28 +128,6 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error
             pass
-
-        # can remove .imirrored check
-        # when we archive with shepherd it doesn't do this
-        # so is pretty worthless for anything used since moving
-        # from farm3 -> farm5
-        
-        # # only check whether a volume is archived if it's smaller than 100MiB,
-        # # any larger than that and it's very likely to still be in use
-        # if (group.usage < 100*1024**2):
-        #     try:
-        #         group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][0] +
-        #                                             group.group_name)
-        #     except FileNotFoundError:
-        #         pass
-
-        #     # only test the next directory if .imirrored wasn't already found
-        #     if group.archived_dirs is None:
-        #         try:
-        #             group.archived_dirs = scanDirectory(GROUP_DIRECTORIES[volume][1] +
-        #                                                 group.group_name)
-        #         except FileNotFoundError:
-        #             pass
 
         if report.usage != 0 or report.last_modified != 0:
             group_data.append(report)
@@ -239,8 +182,6 @@ def main(start_days_ago: int = 0) -> None:
     group_report_data: T.Dict[str, T.List[GroupReport]] = {}
     for volume, group_reports in wr_data:
         group_report_data[volume] = group_reports
-
-    print([x.row for y in group_report_data.values() for x in y])
 
     date = datetime.date.today().strftime("%Y-%m-%d")
 
