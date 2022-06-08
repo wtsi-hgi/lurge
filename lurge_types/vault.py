@@ -1,11 +1,10 @@
 import datetime
-import re
 import typing as T
 
 import utils
 import utils.ldap
 
-from directory_config import PROJECT_DIRS
+from utils.symlink import get_mdt_symlink
 
 
 class VaultPuppet:
@@ -36,11 +35,7 @@ class VaultPuppet:
         except KeyError:
             self.group = None
 
-        for human_path, data_path in PROJECT_DIRS.items():
-            if re.match(data_path, self.full_path.strip("/")):
-                _suffix = re.sub(data_path, "", self.full_path.strip("/"))
-                self.full_path = f"/{human_path}{_suffix}"
-                break
+        self.full_path = get_mdt_symlink(self.full_path)
 
     @property
     def size(self) -> str:

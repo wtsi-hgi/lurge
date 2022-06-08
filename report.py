@@ -13,6 +13,7 @@ import db.common
 import db.report
 import utils.finder
 import utils.ldap
+from utils.symlink import get_mdt_symlink
 import utils.tsv
 
 import db_config as config
@@ -20,7 +21,7 @@ import db_config as config
 from directory_config import PSEUDO_GROUPS, WRSTAT_DIR, REPORT_DIR, VOLUMES, LOGGING_CONFIG
 
 
-def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_groups: T.Dict[str, str], logger: logging.Logger) -> T.Tuple[str, T.List[GroupReport]]:
+def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[int, str], ldap_groups: T.Dict[int, str], logger: logging.Logger) -> T.Tuple[str, T.List[GroupReport]]:
     """
     Processes a single wrstat output file and creates a list of GroupReports.
     Intended to be ran multiple times concurrently for multiple files.
@@ -35,6 +36,7 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
         "scratch123", [
             GroupReport{
                 group_name: "Group Name",
+                path: "/lustre/scratch119/humgen/projects/group_project",
                 pi_name: "PI",
                 usage: 12345,
                 ...
@@ -51,8 +53,8 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
         reports[grp_dir] = GroupReport(
             gid=grp_dir[0],
             path=grp_dir[1],
-            group_name = ldap_groups[grp_dir[0]],
-            pi_name = ldap_pis[grp_dir[0]],
+            group_name = ldap_groups.get(int(grp_dir[0])) if grp_dir[0] != "0" else "root", # 0 -> root, FoundNum -> grp, NotFound -> None
+            pi_name = ldap_pis.get(int(grp_dir[0])),
             volume=volume
         )
 
@@ -71,6 +73,8 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
             if lines_processed % 5000000 == 0:
                 logger.debug(
                     f"{lines_processed} records processed for {volume}")
+
+            lines_processed += 1
 
             line = line.split()
 
@@ -108,7 +112,6 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
             except ValueError:
                 continue
 
-            lines_processed += 1
 
     # gets the Unix timestamp of when the wrstat file was created
     # int() truncates away the sub-second measurements
@@ -117,6 +120,9 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[str, str], ldap_gr
     for report in reports.values():
         # let it calculate its last modified time relative to the wrstat file time
         report.calculate_last_modified_rel(wrstat_date_unix)
+
+        # replace with human paths if it can
+        report.base_path = get_mdt_symlink(report.base_path)
 
         # lfs quota query is split into a list based on whitespace, and the
         # fourth element is taken as the quota. it's in kibibytes though, so it
