@@ -1,4 +1,4 @@
-def humanise(number):
+def humanise(number: int) -> str:
     """Converts bytes to human-readable string."""
     if number/2**10 < 1:
         return "{}".format(number)

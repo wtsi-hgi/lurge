@@ -5,24 +5,13 @@ WRSTAT_DIR = "/lustre/scratch123/admin/team94/wrstat/output/"
 REPORT_DIR = os.environ["REPORT_DIR"] + "/"
 VOLUMES = [119]
 #VOLUMES = [117, 118, 119, 123, 124]
-LOGGING_CONFIG="/software/hgi/installs/lurge/etc/logging.conf"
+LOGGING_CONFIG="/software/hgi/installs/lurge/etc/logging.dev.conf"
 
 # Manager Config
 # max number of days ago to search for wrstat
 MAX_DAYS_AGO = 20
 
 # Reporter Config
-# directories with group directories to scan for .imirrored
-GROUP_DIRECTORIES = {
-    "scratch117": ["/lustre/scratch117/casm", "/lustre/scratch117/casm"],
-    'scratch118': ["/lustre/scratch118/humgen/old-team-data/",
-                   "/lustre/scratch118/humgen/hgi/projects/"],
-    'scratch119': ["/lustre/scratch119/humgen/teams",
-                   "/lustre/scratch119/humgen/projects/", "/lustre/scratch119/casm/"],
-    "scratch123": ["/lustre/scratch123/hgi/teams/", "/lustre/scratch123/hgi/projects/"],
-    "scratch124": ["/lustre/scratch124/casm", "/lustre/scratch124/casm"]
-}
-
 # Warning System
 # Default warning is the 'OK' level
 # WARNINGS contains dictionary of warning levels to a
@@ -35,26 +24,12 @@ WARNINGS = {
 }
 
 # Inspector Config
-# redirects to actual storage locations
-# also used in puppeteer config
-PROJECT_DIRS = {
-    'lustre/scratch119/humgen/projects': 'lustre/scratch119/realdata/mdt[0-9]/projects',
-    'lustre/scratch119/humgen/teams': 'lustre/scratch119/realdata/mdt[0-9]/teams',
-    "lustre/scratch119/casm": "lustre/scratch119/realdata/mdt[0-9]/casm",
-    "lustre/scratch123/hgi/projects": "lustre/scratch123/hgi/mdt[0-9]/projects",
-    "lustre/scratch123/hgi/teams": "lustre/scratch123/hgi/mdt[0-9]/teams"
-}
-
-# where to search if no specific path given
-ALL_PROJECTS = {
-    "117": ["lustre/scratch117/casm/team113"],
-    '118': ["lustre/scratch118/humgen/hgi/projects", "lustre/scratch118/humgen/old-team-data"],
-    '119': ["lustre/scratch119/realdata/mdt[0-9]/projects", 
-            "lustre/scratch119/realdata/mdt[0-9]/teams", 
-            "lustre/scratch119/realdata/mdt[0-9]/casm"
-            ],
-    "123": ["lustre/scratch123/hgi/mdt[0-9]/projects", "lustre/scratch123/hgi/mdt[0-9]/teams"],
-    "124": ["lustre/scratch124/casm/team113"]
+MDT_SYMLINKS = {
+    "/lustre/scratch119/realdata/mdt[2-3]/teams": "/lustre/scratch119/humgen/teams",
+    "/lustre/scratch119/realdata/mdt[2-3]/projects": "/lustre/scratch119/humgen/projects",
+    "/lustre/scratch119/realdata/mdt[0-9]/casm": "/lustre/scratch119/casm",
+    "/lustre/scratch123/hgi/mdt[0-9]/projects": "/lustre/scratch123/hgi/projects",
+    "/lustre/scratch123/hgi/mdt[0-9]/teams": "/lustre/scratch123/hgi/teams"
 }
 
 # Filetypes

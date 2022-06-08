@@ -8,7 +8,7 @@ import typing as T
 from directory_config import MAX_DAYS_AGO
 
 
-def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Logger] = None, days_ago: int = 0):
+def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Logger] = None, days_ago: int = 0) -> str:
     def _mtime(f):
         return os.stat(f).st_mtime
 
@@ -27,6 +27,8 @@ def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Lo
                 logger.info(
                     f"{scratch_disk}: using wrstat output for {date.strftime('%Y%m%d')}")
             return matching_files[0]
+            
+    raise FileNotFoundError
 
 
 def getParents(directory: str) -> T.List[str]:

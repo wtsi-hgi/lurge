@@ -1,12 +1,14 @@
 import csv
 from datetime import datetime
-from email.headerregistry import Group
+from lurge_types.directory_report import DirectoryReport
 from lurge_types.group_report import GroupReport
-from directory_config import REPORT_DIR
+from directory_config import FILETYPES, REPORT_DIR
 import logging
 import logging.config
 from lurge_types.user import UserReport
 import typing as T
+
+from utils import humanise
 
 
 def createTsvReport(group_reports: T.Dict[str, T.List[GroupReport]], date: str, report_dir: str, logger: logging.Logger) -> None:
@@ -32,7 +34,7 @@ def createTsvReport(group_reports: T.Dict[str, T.List[GroupReport]], date: str, 
             logger.debug("Inserting data for {}...".format(volume))
             for report in reports:
 
-                data = ["-" if x == None else x for x in report.row]
+                data = [x if x is not None else "-" for x in report.row]
 
                 report_writer.writerow(data)
 
@@ -62,3 +64,36 @@ def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserRepo
                 ]])
 
     logger.info("Done writing user report info to TSV file")
+
+def create_tsv_inspector_report(directories: T.List[DirectoryReport], logger: logging.Logger) -> None:
+    logger.info("writing inspector info to TSV file")
+    
+    _filetypes = list(FILETYPES.keys())
+    _filetypes.sort()
+    
+    with open(f"{REPORT_DIR}inspector-reports/{datetime.today().strftime('%Y-%m-%d')}.tsv", "w", newline="") as rf:
+        writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
+        writer.writerow([
+            "Base Path",
+            "Directory",
+            "Size",
+            *_filetypes,
+            "Num Files",
+            "Last Modified",
+            "PI",
+            "Group"
+        ])
+
+        for directory in directories:
+            writer.writerow([
+                directory.base_path or "",
+                directory.subdir or "",
+                str(humanise(directory.size)),
+                *[str(humanise(size)) for size in [directory.filetypes[x] for x in _filetypes]],
+                str(directory.num_files),
+                str(round(directory.relative_mtime / 86400, 1)),
+                directory.pi or "",
+                directory.group_name or ""
+            ])
+
+

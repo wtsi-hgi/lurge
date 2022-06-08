@@ -23,7 +23,7 @@ def main(modes: T.Set[str]) -> None:
         # Run the inspector, defaulting to adding to SQL DB
         logger.info("Running inspector")
         import project_inspector
-        project_inspector.main(tosql=True)
+        project_inspector.main()
 
     if "puppeteer" in modes:
         # Run puppeteer - defaults to all volumes
