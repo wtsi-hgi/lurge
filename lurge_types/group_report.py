@@ -26,7 +26,8 @@ class GroupReport:
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
     def calculate_last_modified_rel(self, wrstat_time: int) -> None:
-        self.last_modified_rel = max(0, (wrstat_time - self.last_modified) // 86400)
+        self.last_modified_rel = max(
+            0, (wrstat_time - self.last_modified) // 86400)
 
     row_headers: T.List[str] = [
         "Top Level Path",

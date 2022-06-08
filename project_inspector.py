@@ -52,13 +52,16 @@ def get_directory_info_from_wrstat(
     """
 
     pis, groups = names
-    base_directory_info = utils.finder.read_base_directories("somepath") # TODO
+    base_directory_info = utils.finder.read_base_directories(
+        "somepath")  # TODO
 
     # Format paths and find the wrstat report
-    report_path = utils.finder.findReport(f"/lustre/scratch{volume}", WRSTAT_DIR, logger)
+    report_path = utils.finder.findReport(
+        f"/lustre/scratch{volume}", WRSTAT_DIR, logger)
     wrstat_date = int(os.stat(report_path).st_mtime)
 
-    new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {} # (gid, base_path, directory)
+    # (gid, base_path, directory)
+    new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {}
 
     # Reading over every line in the wrstat report
     logger.info(f"Reading wrstat output {report_path}")
@@ -106,7 +109,7 @@ def get_directory_info_from_wrstat(
             if len(_subdir_split) == 2 and _subdir_split[0] == "users":
                 subdir = f"users/{_subdir_split[1]}"
             elif len(_subdir_split) == 0:
-                continue # TODO this isn't right
+                continue  # TODO this isn't right
             else:
                 subdir = _subdir_split[0]
 
@@ -134,12 +137,14 @@ def get_directory_info_from_wrstat(
                 new_directory_reports[(gid, base_path, subdir)].num_files += 1
 
                 if mtime > new_directory_reports[(gid, base_path, subdir)].mtime:
-                    new_directory_reports[(gid, base_path, subdir)].mtime = mtime
+                    new_directory_reports[(
+                        gid, base_path, subdir)].mtime = mtime
 
                 # Filetype Sizes
                 for filetype, regex in FILETYPES.items():
                     if re.compile(regex).search(path):
-                        new_directory_reports[(gid, base_path, subdir)].filetypes[filetype] += size
+                        new_directory_reports[(
+                            gid, base_path, subdir)].filetypes[filetype] += size
 
     directory_reports_lst: T.List[DirectoryReport] = []
     for key, report in new_directory_reports.items():
@@ -150,7 +155,6 @@ def get_directory_info_from_wrstat(
         report.relative_mtime = round((wrstat_date - report.mtime)/86400, 1)
 
         directory_reports_lst.append(report)
-
 
     return directory_reports_lst
 
@@ -180,8 +184,9 @@ def main() -> None:
         db_conn, [y for x in mappings for y in x], logger)
 
     # Writing to TSV
-    utils.tsv.create_tsv_inspector_report([y for x in mappings for y in x], logger)
+    utils.tsv.create_tsv_inspector_report(
+        [y for x in mappings for y in x], logger)
 
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     main()

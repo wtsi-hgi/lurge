@@ -16,8 +16,8 @@ def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Lo
     while days_ago < MAX_DAYS_AGO:
         date = datetime.date.today() - datetime.timedelta(days=days_ago)
         matching_files = glob.glob(
-            f"{report_dir}{date.strftime('%Y%m%d')}_scratch{volume}.*.*.stats.gz") # wrstat
-            # f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.*.*.stats.gz") # mpistat
+            f"{report_dir}{date.strftime('%Y%m%d')}_scratch{volume}.*.*.stats.gz")  # wrstat
+        # f"{report_dir}{date.strftime('%Y%m%d')}_{volume}.*.*.stats.gz") # mpistat
         if len(matching_files) == 0:
             days_ago += 1
         else:
@@ -27,7 +27,7 @@ def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Lo
                 logger.info(
                     f"{scratch_disk}: using wrstat output for {date.strftime('%Y%m%d')}")
             return matching_files[0]
-            
+
     raise FileNotFoundError
 
 
@@ -39,8 +39,9 @@ def getParents(directory: str) -> T.List[str]:
     split_dir = directory.split("/")
     return ["/".join(split_dir[:i]) for i in range(1, len(split_dir))]
 
+
 def read_base_directories(report_dir: Path) -> T.Set[T.Tuple[str, str]]:
-    with open("/lustre/scratch119/humgen/teams/hgi/users/mg38/small.tsv") as f: # TODO
+    with open("/lustre/scratch119/humgen/teams/hgi/users/mg38/small.tsv") as f:  # TODO
         # One Line is a Group:Base Directory Pairing
         # (group being gid)
         # there can be many groups to one base directory,

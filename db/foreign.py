@@ -34,7 +34,8 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection) -> T.Tuple[
     cursor.execute(f"SELECT * FROM {SCHEMA}.unix_group")
     group_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
 
-    groups: T.Dict[str, int] = {group_name: group_id for group_id, group_name in group_results}
+    groups: T.Dict[str, int] = {
+        group_name: group_id for group_id, group_name in group_results}
 
     # Volumes
     cursor.execute(f"SELECT * FROM {SCHEMA}.volume")
@@ -67,7 +68,8 @@ def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection) -> T.Tuple[
         filetype: filetype_id for filetype_id, filetype in filetype_results}
 
     # Base Directories
-    cursor.execute(f"SELECT base_directory_id, directory_path from {SCHEMA}.base_directory")
+    cursor.execute(
+        f"SELECT base_directory_id, directory_path from {SCHEMA}.base_directory")
     directory_results: T.List[T.Tuple[int, str]] = cursor.fetchall()
     base_directories: T.Dict[str, int] = {
         base_directory: base_directory_id for base_directory_id, base_directory in directory_results

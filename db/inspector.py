@@ -91,7 +91,8 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, director
 
         if _base_directory not in base_dirs:
             cursor.execute(
-                f"INSERT INTO {SCHEMA}.base_directory (directory_path, volume_id) VALUES (%s, %s);", (_base_directory, volumes[_volume])
+                f"INSERT INTO {SCHEMA}.base_directory (directory_path, volume_id) VALUES (%s, %s);", (
+                    _base_directory, volumes[_volume])
             )
             new_base_directory_id = cursor.lastrowid
             base_dirs[_base_directory] = new_base_directory_id

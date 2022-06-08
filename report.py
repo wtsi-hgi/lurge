@@ -44,17 +44,20 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[int, str], ldap_gr
         , ...] 
     """
 
-    volume = wr_file.split('/')[-1].split('.')[0].split('_')[1] # wrstat
+    volume = wr_file.split('/')[-1].split('.')[0].split('_')[1]  # wrstat
     # volume = "scratch" + wr_file.split('/')[-1].split('.')[0].split('_')[1] # mpistat
 
     reports: T.Dict[T.Tuple[str, str], GroupReport] = {}
-    baes_directory_info = utils.finder.read_base_directories("somepath") # TODO
+    baes_directory_info = utils.finder.read_base_directories(
+        "somepath")  # TODO
     for grp_dir in baes_directory_info:
         reports[grp_dir] = GroupReport(
             gid=grp_dir[0],
             path=grp_dir[1],
-            group_name = ldap_groups.get(int(grp_dir[0])) if grp_dir[0] != "0" else "root", # 0 -> root, FoundNum -> grp, NotFound -> None
-            pi_name = ldap_pis.get(int(grp_dir[0])),
+            # 0 -> root, FoundNum -> grp, NotFound -> None
+            group_name=ldap_groups.get(
+                int(grp_dir[0])) if grp_dir[0] != "0" else "root",
+            pi_name=ldap_pis.get(int(grp_dir[0])),
             volume=volume
         )
 
@@ -111,7 +114,6 @@ def get_group_data_from_wrstat(wr_file: str, ldap_pis: T.Dict[int, str], ldap_gr
                         reports[key].last_modified = int(line[5])
             except ValueError:
                 continue
-
 
     # gets the Unix timestamp of when the wrstat file was created
     # int() truncates away the sub-second measurements

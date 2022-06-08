@@ -1,6 +1,7 @@
 from collections import defaultdict
 import typing as T
 
+
 class DirectoryReport:
     def __init__(self, files: int, mtime: int, scratch_disk: int):
         self.size: int = 0

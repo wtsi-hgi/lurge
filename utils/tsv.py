@@ -65,12 +65,13 @@ def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserRepo
 
     logger.info("Done writing user report info to TSV file")
 
+
 def create_tsv_inspector_report(directories: T.List[DirectoryReport], logger: logging.Logger) -> None:
     logger.info("writing inspector info to TSV file")
-    
+
     _filetypes = list(FILETYPES.keys())
     _filetypes.sort()
-    
+
     with open(f"{REPORT_DIR}inspector-reports/{datetime.today().strftime('%Y-%m-%d')}.tsv", "w", newline="") as rf:
         writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
         writer.writerow([
@@ -89,11 +90,10 @@ def create_tsv_inspector_report(directories: T.List[DirectoryReport], logger: lo
                 directory.base_path or "",
                 directory.subdir or "",
                 str(humanise(directory.size)),
-                *[str(humanise(size)) for size in [directory.filetypes[x] for x in _filetypes]],
+                *[str(humanise(size))
+                  for size in [directory.filetypes[x] for x in _filetypes]],
                 str(directory.num_files),
                 str(round(directory.relative_mtime / 86400, 1)),
                 directory.pi or "",
                 directory.group_name or ""
             ])
-
-
