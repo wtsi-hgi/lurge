@@ -3,7 +3,7 @@ import mysql.connector
 import typing as T
 
 
-def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection, humgen_only: bool = True) -> T.Tuple[
+def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection) -> T.Tuple[
     T.Dict[str, int],
     T.Dict[str, int],
     T.Dict[str, int],

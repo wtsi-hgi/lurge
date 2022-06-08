@@ -13,8 +13,8 @@ def get_all_historical_usage_data(conn: mysql.connector.MySQLConnection) -> Hist
     cursor.execute(f"""
     SELECT used, record_date, group_name, directory_path 
     FROM {SCHEMA}.lustre_usage
-    INNER JOIN unix_group ug on lustre_usage.unix_id = ug.group_id
-    INNER JOIN base_directory USING (base_directory_id)    
+    INNER JOIN {SCHEMA}.unix_group ug on lustre_usage.unix_id = ug.group_id
+    INNER JOIN {SCHEMA}.base_directory USING (base_directory_id)    
     ORDER BY record_date ASC 
     """)
 

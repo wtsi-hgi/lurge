@@ -22,7 +22,7 @@ def load_usage_report_to_sql(sql_db: mysql.connector.MySQLConnection, group_repo
 
     # First, get foreign keys from the MySQL database for PI, Volume and Unix Group
     pis, groups, volumes, _, _, _, base_directories = db.foreign.get_db_foreign_keys(
-        sql_db, humgen_only=False)
+        sql_db)
 
     logger.info("Adding data to MySQL table")
     for volume, reports in group_reports.items():
