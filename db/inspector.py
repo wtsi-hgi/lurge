@@ -18,11 +18,11 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, director
 
     We need to replace the data in the DB.
     So, we're going to mark all the old data as old first,
-    by updating its project name to be prefixed `.hgi.old.`
+    by updating its path name to be prefixed `.hgi.old.`
 
     Then we're going to add all the new data.
 
-    Then we'll delete all the data with `.hgi.old.` in the project name.
+    Then we'll delete all the data with `.hgi.old.` in the path.
 
     If something goes horribly wrong, we'll still have the old data,
     it'll just be tagged `.hgi.old.`. Which is fine. But hopefully that won't happen.
@@ -39,7 +39,7 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, director
 
     # Renaming Old Data
     cursor.execute(
-        f"UPDATE {SCHEMA}.directory SET project_name = (SELECT CONCAT('.hgi.old.', project_name));")
+        f"UPDATE {SCHEMA}.directory SET directory_path = (SELECT CONCAT('.hgi.old.', directory_path));")
     db_conn.commit()
 
     # We're now going to go through all the DirectoryReports we have
@@ -127,15 +127,15 @@ def load_inspections_into_sql(db_conn: mysql.connector.MySQLConnection, director
         db_conn.commit()
 
     # Now we've added all the new data, we can delete all the old data
-    # This is data where the project is prefixed with `.hgi.old.`
+    # This is data where the path is prefixed with `.hgi.old.`
 
     cursor.execute(f"""DELETE FROM {SCHEMA}.file_size WHERE directory_id IN (
                         SELECT directory_id FROM {SCHEMA}.directory
-                        WHERE project_name LIKE '.hgi.old.%'
+                        WHERE directory_path LIKE '.hgi.old.%'
                     )""")
 
     cursor.execute(
-        f"DELETE FROM {SCHEMA}.directory WHERE project_name LIKE '.hgi.old%'")
+        f"DELETE FROM {SCHEMA}.directory WHERE directory_path LIKE '.hgi.old%'")
 
     db_conn.commit()
 
