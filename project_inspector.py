@@ -74,12 +74,18 @@ def wrstat_reader_worker(
                     continue
 
                 _subdir_split = path.replace(base_path, "").split("/")[1:3]
-                if len(_subdir_split) == 2 and _subdir_split[0] == "users":
-                    subdir = f"users/{_subdir_split[1]}"
-                elif len(_subdir_split) == 0:
-                    continue  # TODO this isn't right
+                if len(_subdir_split) == 0:
+                    continue
+                elif len(_subdir_split) == 1:
+                    if line_info[7] == "d":
+                        subdir = _subdir_split[0]
+                    else:
+                        subdir = "."
                 else:
-                    subdir = _subdir_split[0]
+                    if _subdir_split[0] == "users":
+                        subdir = f"users/{_subdir_split[1]}"
+                    else:
+                        subdir = _subdir_split[0]
 
                 if line_info[7] == "d":
                     if (gid, base_path, subdir) not in new_directory_reports:
@@ -166,7 +172,6 @@ def get_directory_info_from_wrstat(
 
     for worker in range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * (rank - 1)),
                         len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank)):
-        print(f"rank {rank} sending data to rank {worker}")
         comm.send({
             "base_directories": base_directory_info,
             "volume": volume
