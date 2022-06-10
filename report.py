@@ -164,7 +164,7 @@ def main(start_days_ago: int = 0) -> None:
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.common.check_date(sql_db, "lustre_usage", wr_date, volume, logger):
+        if not db.common.check_date(sql_db, "lustre_usage", wr_date, volume, logger, True):
             wrstat_files.append(latest_wr)
             wrstat_dates[volume] = wr_date
 

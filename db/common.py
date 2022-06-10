@@ -20,12 +20,14 @@ def getSQLConnection(config) -> mysql.connector.MySQLConnection:
     return db_con
 
 
-def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime.date, volume: int, logger: logging.Logger) -> bool:
-    # Checks the dates in the DB table to see if the date already has data for that particular volume
+def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime.date,
+               volume: int, logger: logging.Logger, base_dir_usage: bool = False) -> bool:
+    # Checks the dates in the DB table to see if the date already has data for
+    # that particular volume
     cursor = conn.cursor(buffered=True)
     cursor.execute(
         f"""SELECT DISTINCT record_date FROM {SCHEMA}.{table}
-        INNER JOIN {SCHEMA}.base_directory USING (base_directory_id)
+        {f'INNER JOIN {SCHEMA}.base_directory USING (base_directory_id)' if base_dir_usage else ''}
         INNER JOIN {SCHEMA}.volume USING (volume_id)
         WHERE scratch_disk = %s""", (f"scratch{volume}",)
     )
