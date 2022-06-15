@@ -3,3 +3,4 @@ db_config.py
 .venv
 .vscode
 *.pyc
+typings

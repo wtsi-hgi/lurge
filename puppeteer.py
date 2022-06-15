@@ -151,7 +151,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     logger = logging.getLogger(__name__)
 
     # Creating SQL Connection
-    db_conn = db.common.getSQLConnection(config)
+    db_conn = db.common.get_sql_connection(config)
 
     # Finding most recent wrstat files for each volume
     # We only care if the most recent wrstat file isn't already in the database

@@ -13,17 +13,8 @@ def main(modes: T.Set[str]) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger("manager")
 
-    if "reporter" in modes:
-        # Run report generator
-        logger.info("Running reporter")
-        import report
-        report.main()
-
-    if "inspector" in modes:
-        # Run the inspector, defaulting to adding to SQL DB
-        logger.info("Running inspector. THIS MUST SUPPORT MPI")
-        import project_inspector
-        project_inspector.main_controller()
+    # Old Reporter and Inspector Merged
+    # Don't run from here, run the script using MPI
 
     if "puppeteer" in modes:
         # Run puppeteer - defaults to all volumes
@@ -49,7 +40,7 @@ if __name__ == "__main__":
         sys.exit(
             "Running modes must be provided, inspector, reporter, puppeteer, users, splitter")
     for arg in sys.argv[1:]:
-        if arg not in ["reporter", "inspector", "puppeteer", "users", "splitter"]:
+        if arg not in ["puppeteer", "users", "splitter"]:
             sys.exit(
-                "Available running modes are inspector, reporter, puppeteer, users, splitter")
+                "Available running modes are puppeteer, users, splitter")
     main(set(sys.argv[1:]))

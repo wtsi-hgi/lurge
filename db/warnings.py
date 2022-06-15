@@ -4,8 +4,8 @@ from db_config import SCHEMA
 import typing as T
 import datetime
 
-History = T.DefaultDict[T.Tuple[T.Union[str, None],
-                                str], T.List[T.Tuple[datetime.date, int]]]
+History = T.DefaultDict[T.Tuple[T.Optional[str],
+                                T.Optional[str]], T.List[T.Tuple[datetime.date, int]]]
 
 
 def get_all_historical_usage_data(conn: mysql.connector.MySQLConnection) -> History:
