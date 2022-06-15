@@ -13,7 +13,7 @@ SCALING_FACTOR = 2**30  # bytes / 2**30 = GiB
 
 
 def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
-                         reports: T.List[T.Dict[T.Tuple[int, str], GroupReport]]) -> None:
+                         reports: T.List[T.List[GroupReport]]) -> None:
     cursor: mysql.connector.cursor.MySQLCursor = db_conn.cursor(buffered=True)
 
     # Renaming Old Data
@@ -26,8 +26,8 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
 
     # Add Top Level Reports
     for _vol in reports:
-        for (_, base_dir), report in _vol.items():
-            base_dir = get_mdt_symlink(base_dir)
+        for report in _vol:
+            base_dir = get_mdt_symlink(report.base_path or "")
             # Making sure the PI, Group and Volume all exist in the DB
             pi: T.Optional[int]
             if report.pi_name is not None:
