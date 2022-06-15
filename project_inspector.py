@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import base64
+import datetime
 import gzip
 import logging
 import os
+from pathlib import Path
 import re
+import subprocess
 import typing as T
 
 from mpi4py import MPI
 
 import db.common
 import db.inspector
+import db.new_report
 import db_config as config
+from lurge_types.group_report import NewDirectoryReport, NewGroupReport
 import utils.finder
 import utils.ldap
 import utils.tsv
@@ -51,7 +56,7 @@ def wrstat_reader_worker(
     10      Device ID
     """
 
-    new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {}
+    new_reports: T.Dict[T.Tuple[int, str], NewGroupReport] = {}
 
     controller_rank: int = (
         (rank - len(VOLUMES) - 1) // WORKERS_PER_VOLUME) + 1
@@ -84,6 +89,24 @@ def wrstat_reader_worker(
                 else:
                     continue
 
+                if (gid, base_path) not in new_reports:
+                    new_reports[(gid, base_path)] = NewGroupReport(
+                        volume=volume
+                    )
+
+                # Update Size                
+                new_reports[(gid, base_path)].usage += int(line_info[1]) // int(line_info[9])
+
+                # Update Last Modified Time
+                # this is either the time already in the record,
+                # the time from the wrstat (if its newer), but
+                # not if its in the future, then we set it to now
+                new_reports[(gid, base_path)].last_modified = max(
+                    new_reports[(gid, base_path)].last_modified,
+                    min(int(line_info[5]), int(datetime.datetime.now().timestamp()))
+                )
+
+
                 # find the subdirectory for this line
                 # if it's a users directory, we'll go one level deeper
                 _subdir_split = path.replace(base_path, "").split("/")[1:3]
@@ -103,11 +126,9 @@ def wrstat_reader_worker(
                 # we'll add all the info we can, i.e. size, (this is based
                 # on whether it is a directory or a file)
                 if line_info[7] == "d":
-                    if (gid, base_path, subdir) not in new_directory_reports:
-                        new_directory_reports[(gid, base_path, subdir)] = DirectoryReport(
-                            files=1,
+                    if subdir not in new_reports[(gid, base_path)].subdirs:
+                        new_reports[(gid, base_path)].subdirs[base_path] = NewDirectoryReport(
                             mtime=int(line_info[5]),
-                            scratch_disk=volume
                         )
 
                 elif line_info[7] == "f":
@@ -115,32 +136,25 @@ def wrstat_reader_worker(
                     hardlinks = min(1, int(line_info[9]))
                     size = int(line_info[1]) // hardlinks
 
-                    if (gid, base_path, subdir) not in new_directory_reports:
-                        new_directory_reports[(gid, base_path, subdir)] = DirectoryReport(
-                            files=0,
-                            mtime=mtime,
-                            scratch_disk=volume
+                    if subdir not in new_reports[(gid, base_path)].subdirs:
+                        new_reports[(gid, base_path)].subdirs[subdir] = NewDirectoryReport(
+                            mtime=mtime
                         )
 
                     # Update Values
-                    new_directory_reports[(
-                        gid, base_path, subdir)].size += size
-                    new_directory_reports[(
-                        gid, base_path, subdir)].num_files += 1
+                    new_reports[(gid, base_path)].subdirs[subdir].size += size
+                    new_reports[(gid, base_path)].subdirs[subdir].num_files += 1
 
-                    if mtime > new_directory_reports[(
-                            gid, base_path, subdir)].mtime:
-                        new_directory_reports[(
-                            gid, base_path, subdir)].mtime = mtime
+                    if mtime > new_reports[(gid, base_path)].subdirs[subdir].mtime:
+                        new_reports[(gid, base_path)].subdirs[subdir].mtime = mtime
 
                     # Filetype Sizes
                     for filetype, regex in FILETYPES.items():
                         if re.compile(regex).search(path):
-                            new_directory_reports[(
-                                gid, base_path, subdir)].filetypes[filetype] += size
+                            new_reports[(gid, base_path)].subdirs[subdir].filetypes[filetype] += size
 
         elif data["msg"] == "DONE":
-            comm.send(new_directory_reports, dest=controller_rank)
+            comm.send(new_reports, dest=controller_rank)
             return
 
 
@@ -177,7 +191,7 @@ def reading_wrstat_controller(
 
     pis, groups = names
     base_directory_info = utils.finder.read_base_directories(
-        "somepath")  # TODO
+        Path(WRSTAT_DIR))
 
     # Format paths and find the wrstat report
     report_path = utils.finder.find_report(
@@ -215,7 +229,8 @@ def reading_wrstat_controller(
                 _line_block = set()
 
     # (gid, base_path, directory)
-    new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {}
+    # new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {}
+    new_reports: T.Dict[T.Tuple[int, str], NewGroupReport] = {}
 
     # When we've sent the entire wrstat file to workers, we can iterate over every
     # worker listening to this controller, and send a DONE message.
@@ -229,36 +244,34 @@ def reading_wrstat_controller(
         # for work instead.
         result = None
         while not isinstance(result, dict):
-            result: T.Union[None, int, T.Dict[T.Tuple[int, str,
-                                                      str], DirectoryReport]] = comm.recv(source=worker)
+            result: T.Union[None, int, T.Dict[T.Tuple[int, str], NewGroupReport]] = comm.recv(source=worker)
 
         # As a single report could have been worked on by different, separate, workers,
         # we combine them when they come in, by totalling the sizes etc.
         for id, report in result.items():
-            if id not in new_directory_reports:
-                new_directory_reports[id] = report
+            if id not in new_reports:
+                new_reports[id] = report
             else:
-                new_directory_reports[id].size += report.size
-                new_directory_reports[id].num_files += report.num_files
-                new_directory_reports[id].mtime = max(
-                    report.mtime, new_directory_reports[id].mtime)
-                for key, value in report.filetypes.items():
-                    new_directory_reports[id].filetypes[key] += value
+                new_reports[id] += report
 
     # Once we've got all the data from the workers collected, we can fill
     # in some gaps, i.e. group name, and then put the finished reports in 
     # a list, and send that back to the rank 0 node
-    directory_reports_lst: T.List[DirectoryReport] = []
-    for key, report in new_directory_reports.items():
-        report.pi = pis.get(key[0])
+    # directory_reports_lst: T.List[NewGroupReport] = []
+    for key, report in new_reports.items():
+        report.pi_name = pis.get(key[0])
         report.group_name = groups.get(key[0])
-        report.base_path = get_mdt_symlink(key[1])
-        report.subdir = key[2]
-        report.relative_mtime = round((wrstat_date - report.mtime) / 86400, 1)
+        try:
+            report.quota = int(subprocess.check_output(["lfs", "quota", "-gq", str(report.group_name),
+                                                       "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
+        except subprocess.CalledProcessError:
+            # some groups don't have mercury as a member, which means their
+            # quotas can't be checked and the above command throws an error
+            pass
+        report.wrstat_time = wrstat_date
+        report.base_path = key[1]
 
-        directory_reports_lst.append(report)
-
-    comm.send(directory_reports_lst, dest=0)
+    comm.send(new_reports, dest=0)
 
 
 def main_controller() -> None:
@@ -278,19 +291,25 @@ def main_controller() -> None:
             "group_pi_names": group_pi_names
         }, dest=idx + 1)
 
-    mappings: T.List[T.List[DirectoryReport]] = []
+    # mappings: T.List[T.List[DirectoryReport]] = []
+    # for idx, _ in enumerate(VOLUMES):
+    #     # wait for information back from those controllers
+    #     mappings.append(comm.recv(source=idx + 1))
+
+    all_reports: T.List[T.Dict[T.Tuple[int, str], NewGroupReport]] = []
     for idx, _ in enumerate(VOLUMES):
-        # wait for information back from those controllers
-        mappings.append(comm.recv(source=idx + 1))
+        # wait for information back from these controllers
+        all_reports.append(comm.recv(source = idx+1))
 
     # Write to MySQL database
     db_conn = db.common.getSQLConnection(config)
-    db.inspector.load_inspections_into_sql(
-        db_conn, [y for x in mappings for y in x], logger)
+    db.new_report.load_reports_into_db(db_conn, all_reports)
+    # db.inspector.load_inspections_into_sql(
+    #     db_conn, [y for x in mappings for y in x], logger)
 
-    # Writing to TSV
-    utils.tsv.create_tsv_inspector_report(
-        [y for x in mappings for y in x], logger)
+    # Writing to TSV # TODO
+    # utils.tsv.create_tsv_inspector_report(
+    #     [y for x in mappings for y in x], logger)
 
 
 if __name__ == "__main__":
