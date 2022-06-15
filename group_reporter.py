@@ -18,8 +18,9 @@ import db.group_reporter
 import db_config as config
 import utils.finder
 import utils.ldap
-# import utils.tsv
-from directory_config import FILETYPES, LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
+import utils.tsv
+from directory_config import (FILETYPES, LOGGING_CONFIG, REPORT_DIR, VOLUMES,
+                              WRSTAT_DIR)
 from lurge_types.group_report import DirectoryReport, GroupReport
 
 comm = MPI.COMM_WORLD
@@ -306,13 +307,14 @@ def main_controller() -> None:
     db_conn = db.common.get_sql_connection(config)
     db.group_reporter.load_reports_into_db(db_conn, all_reports)
 
-    # Writing to TSV # TODO
-    # utils.tsv.create_tsv_inspector_report(
-    #     [y for x in mappings for y in x], logger)
+    # Writing to TSV
+    date = datetime.date.fromtimestamp(
+        all_reports[0][0]._wrstat_time).isoformat()  # type: ignore
+    utils.tsv.create_tsv_report(all_reports, date, REPORT_DIR, logger)
+    utils.tsv.create_tsv_inspector_report(all_reports, date, logger)
 
 
 if __name__ == "__main__":
-
     """
     MPI Ranks
     Rank 0: Process to spin up volume controller processes,
@@ -328,6 +330,7 @@ if __name__ == "__main__":
     if rank == 0:
         # main process
         main_controller()
+    
     elif rank <= len(VOLUMES):
         # main process for each volume
         data = comm.recv(source=0)

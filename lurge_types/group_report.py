@@ -96,3 +96,23 @@ class GroupReport:
         self._wrstat_time = time
         for subdir_report in self.subdirs.values():
             subdir_report.wrstat_time = time
+
+    col_headers = [
+        "Top Level Path",
+        "PI",
+        "Group",
+        "Usage (bytes)",
+        "Quota (bytes)",
+        "Last Modified (days)"
+    ]
+
+    @property
+    def row(self) -> T.List[T.Union[str, int, float, None]]:
+        return [
+            self.base_path,
+            self.pi_name,
+            self.group_name,
+            self.usage,
+            self.quota,
+            self.relative_mtime
+        ]
