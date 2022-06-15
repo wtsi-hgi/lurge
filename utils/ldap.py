@@ -2,7 +2,7 @@ import ldap
 import typing as T
 
 
-def getLDAPConnection():
+def get_ldap_connection():
     con = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
     # Sanger internal LDAP is public so no credentials needed
     con.bind("", "")

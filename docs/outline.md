@@ -4,7 +4,8 @@
 
 ### `cron.sh`
 
-- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `inspector`, `puppeteer` and `users`)
+- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `puppeteer` and `users`)
+- also runs the project_inspector separetly through an `mpirun` call
 
 ### `manager.py`
 
@@ -12,10 +13,11 @@
 
 ### `report.py`
 
-- estableses connection to MySQL (`db/common.py`)
+
+- establishes connection to MySQL (`db/common.py`)
 - finds the latest wrstat for each volume, and checks if its already in the database. we only care if its new data (`utils/finder.py` and `db/report.py`)
 - estableshes connection to Sanger LDAP (`utils/ldap.py`)
-- collects humgen ldap groups, with gid, name and PI (`utils/ldap.py`)
+- collects ldap groups, with gid, name and PI (`utils/ldap.py`)
 - runs the following for each wrstat input (multiproc pool)
     - reads wrstat filename to determine volume
     - deserialises group table into memory
@@ -24,7 +26,6 @@
     - for each group accumalated:
       - fill in blanks from ldap if neccesary
       - attempt to get quota and consumption by running `lfs quota`
-      - check for archived directories (old .imirrored file)
       - returns the group data for the volume
     - transfers the data to the mysql database (`db/report.py`)
         - one of the fields here is `report.warning`, which calculates the status of that group (logic in `lurge_types/group_report.py`).
@@ -43,32 +44,40 @@
 
 ### `project_inspector.py`
 
-- get humgen groups from ldap (`utils.ldap.py`)
-- if a path isn't specified, spin up multiproc Pool workers to collect data on all the humgen directories we care about
-    - firstly, finds the most recent wrstat report for the volume
-    - iterates over every line in the wrstat
-        - if the path doesn't contain a directory we care about, we skip it
-        - if we're in a `users` directory, go one level deeper
-        - if the path matches a path required for a pseudo group, we'll set the group and pi to that of the pseudo group
-        - if we have a directory:
-            - find out the pi and group name
-            - if the directory isn't already in our reports, add it and all its parents
-            - add the PI and gorup to the directory report
-        - else if we have a file:
-            - get the PI and group information
-            - if the directory (file) not in the reports (which it shouldn't be anyway), add it, and all its parent directories
-            - backfill the file sizes, modified times etc.
-            - if the file is one of those defined in the config, also backfill the file size in that category
-        - return the collection of reports
-    - if `tosql` flag set, we're going to write the information to the database (`db/common.py` and `db.inspector.py`)
-        - First, we're going to load the PI/Group/Volume foreign keys into memory
-        - Next, as we're replacing the old data, we're going to tag all the project_names with `.hgi.old.` at the start, instead of deleting it. This'll save us if the additions go wrong
-        - For each DirectoryRecord we have, we're going to format the sizes nicely
-        - We'll add anything to the foreign tables if neccesary
-        - We're then going to add the information to the `directory` MySQL table, and get back the `directory_id`.
-        - We can use that ID to then add all the specific filetype data to the `file_size` table.
-        - Finally, we can remove any old data - this is data tagged with `.hgi.old`
-    - if we're not going to write it to the database, we're going to write it to `stdout` (`utils/table.py`)
+This uses MPI, and what happens in each instance is based on its rank. (0..n)
+
+**Rank 0:**
+- get groups from ldap (`utils.ldap.py`)
+- send information to controllers per volume
+- wait for a response from those
+- write everything to database
+    - First, we're going to load the PI/Group/Volume foreign keys into memory
+    - Next, as we're replacing the old data, we're going to tag all the project_names with `.hgi.old.` at the start, instead of deleting it. This'll save us if the additions go wrong
+    - For each DirectoryRecord we have, we're going to format the sizes nicely
+    - We'll add anything to the foreign tables if neccesary
+    - We're then going to add the information to the `directory` MySQL table, and get back the `directory_id`.
+    - We can use that ID to then add all the specific filetype data to the `file_size` table.
+    - Finally, we can remove any old data - this is data tagged with `.hgi.old`
+- Write everything to a TSV file (`utils.tsv.py`)
+
+**Rank <= Number of Volumes:**
+- these control all the workers per volume
+- read the base directory information
+- find the most recent wrstat file for the volume
+- iterates over the wrstat file, and sends blocks of 250 records to the workers when they request them
+- when done, send a DONE message to all workers, and wait for their response
+- collate all the reports from the workers (separate workers could easily have worked on the same directory, so sum up, i.e. file sizes)
+- fill in extra information to each report, i.e. group and PI names
+- return this to the rank 0 process
+
+**Other Rank:**
+- these request work from the controller of the associated volume by sending it their rank number
+- when given a block of 250 entries, it'll iterate over each of them
+    - it'll find the appropriate base_directory
+    - it'll find the subdirectory we'll put the information under
+        - if it's a `users` directory, we'll go one level deeper
+    - it'll add the relevant information, i.e. filesize, to the DirectoryReport (`lurge_types/directory_report.py`). This is based on whether it is a file or directory
+- when it gets a DONE message, it'll send it back to the controller
 
 ### `puppeteer.py`
 

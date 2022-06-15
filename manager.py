@@ -21,9 +21,9 @@ def main(modes: T.Set[str]) -> None:
 
     if "inspector" in modes:
         # Run the inspector, defaulting to adding to SQL DB
-        logger.info("Running inspector")
+        logger.info("Running inspector. THIS MUST SUPPORT MPI")
         import project_inspector
-        project_inspector.main()
+        project_inspector.main_controller()
 
     if "puppeteer" in modes:
         # Run puppeteer - defaults to all volumes

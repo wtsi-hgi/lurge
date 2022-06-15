@@ -8,7 +8,7 @@ import typing as T
 from directory_config import MAX_DAYS_AGO
 
 
-def findReport(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Logger] = None, days_ago: int = 0) -> str:
+def find_report(scratch_disk: str, report_dir: str, logger: T.Optional[logging.Logger] = None, days_ago: int = 0) -> str:
     def _mtime(f):
         return os.stat(f).st_mtime
 

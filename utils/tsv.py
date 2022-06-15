@@ -11,7 +11,7 @@ import typing as T
 from utils import humanise
 
 
-def createTsvReport(group_reports: T.Dict[str, T.List[GroupReport]], date: str, report_dir: str, logger: logging.Logger) -> None:
+def create_tsv_report(group_reports: T.Dict[str, T.List[GroupReport]], date: str, report_dir: str, logger: logging.Logger) -> None:
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
     file.

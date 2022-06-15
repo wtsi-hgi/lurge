@@ -47,7 +47,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
         }
 
     """
-    report_path = utils.finder.findReport(
+    report_path = utils.finder.find_report(
         f"scratch{volume}", WRSTAT_DIR, logger)
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
 
@@ -137,7 +137,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                     group_id=wr_line_info[3]
                 )
 
-    ldap_conn = utils.ldap.getLDAPConnection()
+    ldap_conn = utils.ldap.get_ldap_connection()
     _, group_info = utils.ldap.get_groups_ldap_info(ldap_conn)
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
@@ -159,7 +159,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in volumes:
-        latest_wr = utils.finder.findReport(
+        latest_wr = utils.finder.find_report(
             f"scratch{volume}", WRSTAT_DIR, logger)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(

@@ -158,7 +158,7 @@ def main(start_days_ago: int = 0) -> None:
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in VOLUMES:
-        latest_wr = utils.finder.findReport(
+        latest_wr = utils.finder.find_report(
             f"scratch{volume}", WRSTAT_DIR, logger, start_days_ago)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
@@ -169,7 +169,7 @@ def main(start_days_ago: int = 0) -> None:
             wrstat_dates[volume] = wr_date
 
     logger.info("Establishing LDAP connection...")
-    ldap_con = utils.ldap.getLDAPConnection()
+    ldap_con = utils.ldap.get_ldap_connection()
 
     logger.info("Collecting group information...")
     pis, groups = utils.ldap.get_groups_ldap_info(ldap_con)
@@ -198,7 +198,7 @@ def main(start_days_ago: int = 0) -> None:
         sql_db, group_report_data, wrstat_dates, logger)
 
     logger.info("Writing report data to .tsv file...")
-    utils.tsv.createTsvReport(group_report_data, date, REPORT_DIR, logger)
+    utils.tsv.create_tsv_report(group_report_data, date, REPORT_DIR, logger)
 
     logger.info("Cleaning up...")
     sql_db.close()

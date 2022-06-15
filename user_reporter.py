@@ -41,7 +41,7 @@ def get_user_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultD
     In a UserReport object, size and mtime are DefaultDict[group id (str), value (int/date)]
 
     """
-    report_path = utils.finder.findReport(
+    report_path = utils.finder.find_report(
         f"scratch{volume}", WRSTAT_DIR, logger
     )
 
@@ -84,7 +84,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in volumes:
-        latest_wr = utils.finder.findReport(
+        latest_wr = utils.finder.find_report(
             f"scratch{volume}", WRSTAT_DIR, logger)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
@@ -100,7 +100,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         ))
 
     # Get some information from LDAP
-    ldap_conn = utils.ldap.getLDAPConnection()
+    ldap_conn = utils.ldap.get_ldap_connection()
     _, groups = utils.ldap.get_groups_ldap_info(ldap_conn)
 
     volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]] = {}

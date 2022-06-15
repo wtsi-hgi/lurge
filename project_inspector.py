@@ -27,6 +27,15 @@ WORKERS_PER_VOLUME = 6
 def wrstat_reader_worker(
         base_directory_info: T.Set[T.Tuple[str, str]], volume: int):
     """
+    These workers will each be associated to a controller for a particular
+    volume (we calculate the rank of what that controller will be).
+
+    When we're ready for work, we send a message to the controller with our
+    rank number. It'll send us back a block of 250 lines of wrstat to process
+
+    When we get a DONE message, we send all our reports back to the controller
+    
+    *** WRSTAT LINE LAYOUT ***
     Line Info (layout from wrstat file)
     Index   Item
     0       File Path (base 64 encoded)
@@ -57,6 +66,7 @@ def wrstat_reader_worker(
 
                 line_info = line.split()
 
+                # decode the base64 encoded file path
                 try:
                     path = base64.b64decode(line_info[0]).decode(
                         "UTF-8", "replace")
@@ -65,6 +75,7 @@ def wrstat_reader_worker(
 
                 gid = int(line_info[3])
 
+                # find the appropriate base directory
                 for grp_dir in base_directory_info:
                     if grp_dir[0] == line_info[3] and path.startswith(
                             grp_dir[1]):
@@ -73,6 +84,8 @@ def wrstat_reader_worker(
                 else:
                     continue
 
+                # find the subdirectory for this line
+                # if it's a users directory, we'll go one level deeper
                 _subdir_split = path.replace(base_path, "").split("/")[1:3]
                 if len(_subdir_split) == 0:
                     continue
@@ -87,6 +100,8 @@ def wrstat_reader_worker(
                     else:
                         subdir = _subdir_split[0]
 
+                # we'll add all the info we can, i.e. size, (this is based
+                # on whether it is a directory or a file)
                 if line_info[7] == "d":
                     if (gid, base_path, subdir) not in new_directory_reports:
                         new_directory_reports[(gid, base_path, subdir)] = DirectoryReport(
@@ -129,33 +144,35 @@ def wrstat_reader_worker(
             return
 
 
-def get_directory_info_from_wrstat(
+def reading_wrstat_controller(
     volume: int,
     names: T.Tuple[T.Dict[int, str], T.Dict[int, str]]
 ) -> None:
-    """Processes a wrstat file and gives us the detailed directory info
+    """
+    controls all the workers for a particular volume (rank <= num of volumes)
 
-    :param path: - List of paths to root directories to scan from
-    :param names: - Tuple of dictionaries mapping group IDs to the group name and PI
-    :param depth: - How many levels below the root to scan
-    :param logger: - A logging.Logger object to log to
+    Params:
+        - volume: int - the volume to analyse
+        - names: Tuple[Dict[int, str], Dict[int, str]] - (group_id: pi name, group_id: group_name)
 
-    :returns: Dict[directory path (str), directory information (DirectoryReport)]
-    example:
-        {
-            "/lustre/scratch123/teams/hgi/project_abc": DirectoryReport{
-                size: 12345,
-                filetypes: {
-                    "BAM": 12345,
-                    "CRAM": 123
-                },
-                num_files = 5600,
-                mtime = 1631019126,
-                pi = "PI Name",
-                group_name = "Group Name",
-                scratch_disk = "/lustre/scratch123"
+    Generates List[DirectoryReports] to send back to appropriate controller
+    example: [
+        DirectoryReport{
+            size: 12345,
+            num_files: 5600,
+            mtime: 1631019126,
+            pi: "PI Name",
+            group_name: "Group Name",
+            base_path: "/lustre/scratch123/teams/hgi/project_abc",
+            subdir: "users/ab12",
+            relative_mtime: 5
+            filetypes: {
+                "BAM": 120,
+                "CRAM": 340
             }
         }
+    ]
+
     """
 
     pis, groups = names
@@ -163,7 +180,7 @@ def get_directory_info_from_wrstat(
         "somepath")  # TODO
 
     # Format paths and find the wrstat report
-    report_path = utils.finder.findReport(
+    report_path = utils.finder.find_report(
         f"/lustre/scratch{volume}", WRSTAT_DIR, None)
     wrstat_date = int(os.stat(report_path).st_mtime)
 
@@ -177,6 +194,8 @@ def get_directory_info_from_wrstat(
             "volume": volume
         }, dest=worker)
 
+    # We send workers blocks of 250 lines to process
+    # This is so the workers aren't constantly asking for work
     with gzip.open(report_path, "rt") as wrstat:
         _line_block: T.Set[str] = set()
         for line in wrstat:
@@ -198,14 +217,23 @@ def get_directory_info_from_wrstat(
     # (gid, base_path, directory)
     new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {}
 
+    # When we've sent the entire wrstat file to workers, we can iterate over every
+    # worker listening to this controller, and send a DONE message.
     for worker in range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * (rank - 1)),
                         len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank)):
         comm.send({"msg": "DONE"}, dest=worker)
+        
+        # Then we can wait for a response from every worker, hopefully containing
+        # a dictionary of DirectoryReports
+        # We wait until it's of the right form incase a worker sends another request
+        # for work instead.
         result = None
         while not isinstance(result, dict):
             result: T.Union[None, int, T.Dict[T.Tuple[int, str,
                                                       str], DirectoryReport]] = comm.recv(source=worker)
 
+        # As a single report could have been worked on by different, separate, workers,
+        # we combine them when they come in, by totalling the sizes etc.
         for id, report in result.items():
             if id not in new_directory_reports:
                 new_directory_reports[id] = report
@@ -214,7 +242,12 @@ def get_directory_info_from_wrstat(
                 new_directory_reports[id].num_files += report.num_files
                 new_directory_reports[id].mtime = max(
                     report.mtime, new_directory_reports[id].mtime)
+                for key, value in report.filetypes.items():
+                    new_directory_reports[id].filetypes[key] += value
 
+    # Once we've got all the data from the workers collected, we can fill
+    # in some gaps, i.e. group name, and then put the finished reports in 
+    # a list, and send that back to the rank 0 node
     directory_reports_lst: T.List[DirectoryReport] = []
     for key, report in new_directory_reports.items():
         report.pi = pis.get(key[0])
@@ -228,15 +261,18 @@ def get_directory_info_from_wrstat(
     comm.send(directory_reports_lst, dest=0)
 
 
-def main() -> None:
+def main_controller() -> None:
+    """carried out by the rank 0 process"""
+
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
     # LDAP Information
-    ldap_con = utils.ldap.getLDAPConnection()
+    ldap_con = utils.ldap.get_ldap_connection()
     group_pi_names = utils.ldap.get_groups_ldap_info(ldap_con)
 
     for idx, vol in enumerate(VOLUMES):
+        # send information to all the volume controllers
         comm.send({
             "volume": vol,
             "group_pi_names": group_pi_names
@@ -244,6 +280,7 @@ def main() -> None:
 
     mappings: T.List[T.List[DirectoryReport]] = []
     for idx, _ in enumerate(VOLUMES):
+        # wait for information back from those controllers
         mappings.append(comm.recv(source=idx + 1))
 
     # Write to MySQL database
@@ -257,13 +294,26 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+
+    """
+    MPI Ranks
+    Rank 0: Process to spin up volume controller processes,
+    and eventually write everything to the database.
+
+    Rank <= num of volumes: each of these will act as a 
+    controller for the workers for each volume
+
+    Other rank: these will work as a worker, each associated
+    to a volume controller rank
+    """
+
     if rank == 0:
         # main process
-        main()
+        main_controller()
     elif rank <= len(VOLUMES):
         # main process for each volume
         data = comm.recv(source=0)
-        get_directory_info_from_wrstat(data["volume"], data["group_pi_names"])
+        reading_wrstat_controller(data["volume"], data["group_pi_names"])
 
     else:
         # any of the worker processes

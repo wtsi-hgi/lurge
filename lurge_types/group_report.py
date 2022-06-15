@@ -19,7 +19,7 @@ class GroupReport:
         self.last_modified: int = 0
         self._volume: str = volume
 
-        latest_wr = utils.finder.findReport(
+        latest_wr = utils.finder.find_report(
             volume, WRSTAT_DIR) or ""
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         self._date: datetime.date = datetime.date(int(wr_date_str[:4]), int(
