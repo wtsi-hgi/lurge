@@ -6,13 +6,14 @@ import mysql.connector.cursor
 
 import db.foreign
 from db_config import SCHEMA
-from lurge_types.group_report import NewGroupReport
+from lurge_types.group_report import GroupReport
 from utils.symlink import get_mdt_symlink
 
 SCALING_FACTOR = 2**30  # bytes / 2**30 = GiB
 
 
-def load_reports_into_db(db_conn: mysql.connector.MySQLConnection, reports: T.List[T.Dict[T.Tuple[int, str], NewGroupReport]]) -> None:
+def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
+                         reports: T.List[T.Dict[T.Tuple[int, str], GroupReport]]) -> None:
     cursor: mysql.connector.cursor.MySQLCursor = db_conn.cursor(buffered=True)
 
     # Renaming Old Data
@@ -20,7 +21,8 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection, reports: T.Li
         f"UPDATE {SCHEMA}.directory SET directory_path = (SELECT CONCAT('.hgi.old.', directory_path));")
     db_conn.commit()
 
-    pis, groups, volumes, _, _, filetypes, base_dirs = db.foreign.get_db_foreign_keys(db_conn)
+    pis, groups, volumes, _, _, filetypes, base_dirs = db.foreign.get_db_foreign_keys(
+        db_conn)
 
     # Add Top Level Reports
     for _vol in reports:
@@ -76,7 +78,7 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection, reports: T.Li
                 pi,
                 group_id,
                 base_dirs[base_dir],
-                report.warning # TODO
+                report.warning
             ))
 
             db_conn.commit()
@@ -88,7 +90,8 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection, reports: T.Li
                 subdir_report.size = round(subdir_report.size, 2)
 
                 for filetype, size in subdir_report.filetypes.items():
-                    subdir_report.filetypes[filetype] = round(size / SCALING_FACTOR, 2)
+                    subdir_report.filetypes[filetype] = round(
+                        size / SCALING_FACTOR, 2)
 
                 # Add new data
                 query = f"""INSERT INTO {SCHEMA}.directory (directory_path, num_files,
@@ -130,5 +133,3 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection, reports: T.Li
         f"DELETE FROM {SCHEMA}.directory WHERE directory_path LIKE '.hgi.old%'")
 
     db_conn.commit()
-
-                

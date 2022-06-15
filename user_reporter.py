@@ -78,7 +78,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
-    db_conn = db.common.getSQLConnection(config)
+    db_conn = db.common.get_sql_connection(config)
 
     volumes_to_check: T.List[int] = []
     wrstat_dates: T.Dict[int, datetime.date] = {}

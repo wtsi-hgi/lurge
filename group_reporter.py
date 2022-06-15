@@ -5,24 +5,21 @@ import datetime
 import gzip
 import logging
 import os
-from pathlib import Path
 import re
 import subprocess
 import typing as T
+from pathlib import Path
 
 from mpi4py import MPI
 
 import db.common
-import db.inspector
-import db.new_report
+import db.group_reporter
 import db_config as config
-from lurge_types.group_report import NewDirectoryReport, NewGroupReport
 import utils.finder
 import utils.ldap
 import utils.tsv
 from directory_config import FILETYPES, LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
-from lurge_types.directory_report import DirectoryReport
-from utils.symlink import get_mdt_symlink
+from lurge_types.group_report import DirectoryReport, GroupReport
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -39,7 +36,7 @@ def wrstat_reader_worker(
     rank number. It'll send us back a block of 250 lines of wrstat to process
 
     When we get a DONE message, we send all our reports back to the controller
-    
+
     *** WRSTAT LINE LAYOUT ***
     Line Info (layout from wrstat file)
     Index   Item
@@ -56,7 +53,7 @@ def wrstat_reader_worker(
     10      Device ID
     """
 
-    new_reports: T.Dict[T.Tuple[int, str], NewGroupReport] = {}
+    new_reports: T.Dict[T.Tuple[int, str], GroupReport] = {}
 
     controller_rank: int = (
         (rank - len(VOLUMES) - 1) // WORKERS_PER_VOLUME) + 1
@@ -90,12 +87,13 @@ def wrstat_reader_worker(
                     continue
 
                 if (gid, base_path) not in new_reports:
-                    new_reports[(gid, base_path)] = NewGroupReport(
+                    new_reports[(gid, base_path)] = GroupReport(
                         volume=volume
                     )
 
-                # Update Size                
-                new_reports[(gid, base_path)].usage += int(line_info[1]) // int(line_info[9])
+                # Update Size
+                new_reports[(gid, base_path)
+                            ].usage += int(line_info[1]) // int(line_info[9])
 
                 # Update Last Modified Time
                 # this is either the time already in the record,
@@ -103,9 +101,9 @@ def wrstat_reader_worker(
                 # not if its in the future, then we set it to now
                 new_reports[(gid, base_path)].last_modified = max(
                     new_reports[(gid, base_path)].last_modified,
-                    min(int(line_info[5]), int(datetime.datetime.now().timestamp()))
+                    min(int(line_info[5]),
+                        int(datetime.datetime.now().timestamp()))
                 )
-
 
                 # find the subdirectory for this line
                 # if it's a users directory, we'll go one level deeper
@@ -131,21 +129,25 @@ def wrstat_reader_worker(
                     size = int(line_info[1]) // hardlinks
 
                     if subdir not in new_reports[(gid, base_path)].subdirs:
-                        new_reports[(gid, base_path)].subdirs[subdir] = NewDirectoryReport(
+                        new_reports[(gid, base_path)].subdirs[subdir] = DirectoryReport(
                             mtime=mtime
                         )
 
                     # Update Values
                     new_reports[(gid, base_path)].subdirs[subdir].size += size
-                    new_reports[(gid, base_path)].subdirs[subdir].num_files += 1
+                    new_reports[(gid, base_path)
+                                ].subdirs[subdir].num_files += 1
 
-                    if mtime > new_reports[(gid, base_path)].subdirs[subdir].mtime:
-                        new_reports[(gid, base_path)].subdirs[subdir].mtime = mtime
+                    if mtime > new_reports[(gid, base_path)
+                                           ].subdirs[subdir].mtime:
+                        new_reports[(gid, base_path)
+                                    ].subdirs[subdir].mtime = mtime
 
                     # Filetype Sizes
                     for filetype, regex in FILETYPES.items():
                         if re.compile(regex).search(path):
-                            new_reports[(gid, base_path)].subdirs[subdir].filetypes[filetype] += size
+                            new_reports[(
+                                gid, base_path)].subdirs[subdir].filetypes[filetype] += size
 
         elif data["msg"] == "DONE":
             comm.send(new_reports, dest=controller_rank)
@@ -224,21 +226,22 @@ def reading_wrstat_controller(
 
     # (gid, base_path, directory)
     # new_directory_reports: T.Dict[T.Tuple[int, str, str], DirectoryReport] = {}
-    new_reports: T.Dict[T.Tuple[int, str], NewGroupReport] = {}
+    new_reports: T.Dict[T.Tuple[int, str], GroupReport] = {}
 
     # When we've sent the entire wrstat file to workers, we can iterate over every
     # worker listening to this controller, and send a DONE message.
     for worker in range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * (rank - 1)),
                         len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank)):
         comm.send({"msg": "DONE"}, dest=worker)
-        
+
         # Then we can wait for a response from every worker, hopefully containing
         # a dictionary of DirectoryReports
         # We wait until it's of the right form incase a worker sends another request
         # for work instead.
         result = None
         while not isinstance(result, dict):
-            result: T.Union[None, int, T.Dict[T.Tuple[int, str], NewGroupReport]] = comm.recv(source=worker)
+            result: T.Union[None, int, T.Dict[T.Tuple[int, str],
+                                              GroupReport]] = comm.recv(source=worker)
 
         # As a single report could have been worked on by different, separate, workers,
         # we combine them when they come in, by totalling the sizes etc.
@@ -249,7 +252,7 @@ def reading_wrstat_controller(
                 new_reports[id] += report
 
     # Once we've got all the data from the workers collected, we can fill
-    # in some gaps, i.e. group name, and then put the finished reports in 
+    # in some gaps, i.e. group name, and then put the finished reports in
     # a list, and send that back to the rank 0 node
     # directory_reports_lst: T.List[NewGroupReport] = []
     for key, report in new_reports.items():
@@ -290,14 +293,14 @@ def main_controller() -> None:
     #     # wait for information back from those controllers
     #     mappings.append(comm.recv(source=idx + 1))
 
-    all_reports: T.List[T.Dict[T.Tuple[int, str], NewGroupReport]] = []
+    all_reports: T.List[T.Dict[T.Tuple[int, str], GroupReport]] = []
     for idx, _ in enumerate(VOLUMES):
         # wait for information back from these controllers
-        all_reports.append(comm.recv(source = idx+1))
+        all_reports.append(comm.recv(source=idx + 1))
 
     # Write to MySQL database
-    db_conn = db.common.getSQLConnection(config)
-    db.new_report.load_reports_into_db(db_conn, all_reports)
+    db_conn = db.common.get_sql_connection(config)
+    db.group_reporter.load_reports_into_db(db_conn, all_reports)
     # db.inspector.load_inspections_into_sql(
     #     db_conn, [y for x in mappings for y in x], logger)
 
@@ -313,7 +316,7 @@ if __name__ == "__main__":
     Rank 0: Process to spin up volume controller processes,
     and eventually write everything to the database.
 
-    Rank <= num of volumes: each of these will act as a 
+    Rank <= num of volumes: each of these will act as a
     controller for the workers for each volume
 
     Other rank: these will work as a worker, each associated
