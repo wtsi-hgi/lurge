@@ -125,13 +125,7 @@ def wrstat_reader_worker(
 
                 # we'll add all the info we can, i.e. size, (this is based
                 # on whether it is a directory or a file)
-                if line_info[7] == "d":
-                    if subdir not in new_reports[(gid, base_path)].subdirs:
-                        new_reports[(gid, base_path)].subdirs[base_path] = NewDirectoryReport(
-                            mtime=int(line_info[5]),
-                        )
-
-                elif line_info[7] == "f":
+                if line_info[7] == "f":
                     mtime = int(line_info[5])
                     hardlinks = min(1, int(line_info[9]))
                     size = int(line_info[1]) // hardlinks
@@ -263,7 +257,7 @@ def reading_wrstat_controller(
         report.group_name = groups.get(key[0])
         try:
             report.quota = int(subprocess.check_output(["lfs", "quota", "-gq", str(report.group_name),
-                                                       "/lustre/{}".format(volume)], encoding="UTF-8").split()[3]) * 1024
+                                                       f"/lustre/scratch{volume}"], encoding="UTF-8").split()[3]) * 1024
         except subprocess.CalledProcessError:
             # some groups don't have mercury as a member, which means their
             # quotas can't be checked and the above command throws an error

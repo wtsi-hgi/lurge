@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
 from directory_config import DEFAULT_WARNING, WARNINGS, WRSTAT_DIR
 import typing as T
@@ -16,13 +16,13 @@ class NewDirectoryReport:
   
     size: int = 0
     num_files: int = 0
-    filetypes: T.DefaultDict[str, int] = defaultdict(int)
+    filetypes: T.DefaultDict[str, int] = field(default_factory=lambda: defaultdict(int))
 
     wrstat_time: int = int(datetime.datetime.now().timestamp())
 
     @property
     def relative_mtime(self) -> float:
-        return round((self.wrstat_time - self.mtime) / 86400, 1)
+        return max(0, round((self.wrstat_time - self.mtime) / 86400, 1))
     
 
 @dataclass
@@ -38,7 +38,7 @@ class NewGroupReport:
     last_modified: int = 0
     quota: T.Optional[int] = None
 
-    subdirs: T.Dict[str, NewDirectoryReport] = {}
+    subdirs: T.Dict[str, NewDirectoryReport] = field(default_factory=lambda: {})
 
     _wrstat_time: int = int(datetime.datetime.now().timestamp())
 
@@ -63,7 +63,7 @@ class NewGroupReport:
     
     @property
     def relative_mtime(self) -> float:
-        return round((self.wrstat_time - self.last_modified) / 86400, 1)
+        return max(0, round((self.wrstat_time - self.last_modified) / 86400, 1))
 
     @property
     def warning(self) -> T.Optional[int]:
