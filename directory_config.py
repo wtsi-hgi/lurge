@@ -68,13 +68,3 @@ class Treeserve:
 
 
 MAX_LINES_PER_GROUP_PER_VOLUME = 50
-
-# pseudo groups for extra non-humgen groups we want to find out about
-# {start of file path: (pseudo-group number (negative), group name, pi name)}
-# Group Names CANNOT be the same as an already existing group
-# becuase it creates conflicts
-PSEUDO_GROUPS = {
-    "/lustre/scratch117/casm/team113": (-1, "team113-116", "Team 113"),
-    "/lustre/scratch119/realdata/mdt1/team113": (-1, "team113-116", "Team 113"),
-    "/lustre/scratch124/casm/team113": (-1, "team113-116", "Team 113")
-}
