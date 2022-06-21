@@ -4,13 +4,14 @@ import datetime
 import glob
 import logging
 import os
-from pathlib import Path
 import typing as T
+from pathlib import Path
 
 from directory_config import MAX_DAYS_AGO
 
 
-def find_report(scratch_disk: str, report_dir: str, logger: T.Optional[logging.LoggerAdapter[logging.Logger]] = None, days_ago: int = 0) -> str:
+def find_report(scratch_disk: str, report_dir: str,
+                logger: T.Optional[logging.LoggerAdapter[logging.Logger]] = None, days_ago: int = 0) -> str:
     def _mtime(f):
         return os.stat(f).st_mtime
 

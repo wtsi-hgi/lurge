@@ -3,7 +3,6 @@ import typing as T
 
 import utils
 import utils.ldap
-
 from utils.symlink import get_mdt_symlink
 
 
@@ -20,7 +19,8 @@ class VaultPuppet:
         self.group: T.Optional[str] = None
         self._mtime: T.Optional[datetime.date] = None
 
-    def just_call_my_name(self, size: int, owner: str, mtime: int, group_id: int):
+    def just_call_my_name(self, size: int, owner: str,
+                          mtime: int, group_id: int):
         self._size = size
         self._owner_id = owner
         self._mtime = datetime.datetime.fromtimestamp(mtime).date()

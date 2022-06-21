@@ -63,11 +63,12 @@ class LurgeLogger(logging.LoggerAdapter):
     """
     Each LogRecord will have come from a particular MPI process. Its rank
     will be displayed in the log (see the LoggerAdapter), however, we want to
-    additionally add the purpose of that process, which we define when we 
+    additionally add the purpose of that process, which we define when we
     create a LurgeLogger object (this extends LoggerAdapter) by adding properties
 
     We also define the `super_debug` method (see description of super debug above)
     """
+
     def process(self,
                 msg: T.Any,
                 kwargs: T.MutableMapping[str, T.Any]

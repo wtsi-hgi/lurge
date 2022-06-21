@@ -1,25 +1,26 @@
 import argparse
 import datetime
-import gzip
 import glob
+import gzip
 import logging
 import logging.config
-import os
-from lurge_types.splitter import GroupSplit
 import multiprocessing
+import os
+import subprocess
+import time
 import typing as T
 from collections import defaultdict
 from itertools import repeat
-import subprocess
-import time
 
 import utils.finder
 import utils.ldap
+from directory_config import (LOGGING_CONFIG, REPORT_DIR, VOLUMES, WRSTAT_DIR,
+                              Treeserve)
+from lurge_types.splitter import GroupSplit
 
-from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, VOLUMES
 
-
-def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
+def get_group_info_from_wrstat(
+        volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
     """processes a wrstat file to get us group information
 
     :param volume: - the volume we're going to be searching through

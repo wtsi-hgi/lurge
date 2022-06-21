@@ -69,7 +69,8 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
                 volumes[scratch_disk] = volume_id
 
             if base_dir not in base_dirs:
-                logger.info(f"adding base directory {base_dir} to DB (volume {report.volume})")
+                logger.info(
+                    f"adding base directory {base_dir} to DB (volume {report.volume})")
                 cursor.execute(
                     f"INSERT INTO {SCHEMA}.base_directory (directory_path, volume_id) VALUES (%s, %s);",
                     (base_dir, volumes[scratch_disk])
@@ -78,7 +79,8 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
                 base_dirs[base_dir] = base_directory_id
 
             # Add our data
-            logger.debug(f"adding data to DB for group {report.group_name}, base_directory {base_dir}")
+            logger.debug(
+                f"adding data to DB for group {report.group_name}, base_directory {base_dir}")
             query = f"""INSERT INTO {SCHEMA}.lustre_usage (used, quota, record_date,
                 last_modified, pi_id, unix_id, base_directory_id, warning_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"""
 
@@ -131,7 +133,8 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
                             f"INSERT INTO {SCHEMA}.filetype (filetype_name) VALUES (%s);", (filetype,))
                         filetypes[filetype] = int(cursor.lastrowid)
 
-                    logger.debug(f"adding filetype {filetype} info for {subdir}")
+                    logger.debug(
+                        f"adding filetype {filetype} info for {subdir}")
                     cursor.execute(f"""INSERT INTO {SCHEMA}.file_size (directory_id, filetype_id, size)
                     VALUES (%s, %s, %s);""", (new_id, filetypes[filetype], size))
 

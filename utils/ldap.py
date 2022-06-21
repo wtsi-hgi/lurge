@@ -1,17 +1,20 @@
+import typing as T
+
 import ldap
 import ldap.ldapobject
-import typing as T
 
 
 def get_ldap_connection() -> ldap.ldapobject.LDAPObject:
-    con: ldap.ldapobject.LDAPObject = ldap.initialize("ldap://ldap-ro.internal.sanger.ac.uk:389")
+    con: ldap.ldapobject.LDAPObject = ldap.initialize(
+        "ldap://ldap-ro.internal.sanger.ac.uk:389")
     # Sanger internal LDAP is public so no credentials needed
     con.bind("", "")
 
     return con
 
 
-def get_groups_ldap_info(ldap_con: ldap.ldapobject.LDAPObject) -> T.Tuple[T.Dict[int, str], T.Dict[int, str]]:
+def get_groups_ldap_info(
+        ldap_con: ldap.ldapobject.LDAPObject) -> T.Tuple[T.Dict[int, str], T.Dict[int, str]]:
     # Ask the Sanger LDAP for Humgen Groups
     results: T.List[T.Tuple[T.Any, ...]] = ldap_con.search_s("ou=group,dc=sanger,dc=ac,dc=uk",
                                                              ldap.SCOPE_ONELEVEL, "(objectClass=*)",

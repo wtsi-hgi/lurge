@@ -1,27 +1,26 @@
 import base64
 import datetime
 import gzip
-from itertools import repeat
 import logging
 import multiprocessing
 import sys
 import typing as T
+from itertools import repeat
 
 import db.common
 import db.puppeteer
+import db_config as config
 import utils.finder
 import utils.ldap
-
-import db_config as config
-
+from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
 from lurge_types.vault import VaultPuppet
-from directory_config import VOLUMES, WRSTAT_DIR, LOGGING_CONFIG
 
 # If Vault has Enter Sandman references in, I'm putting Master of Puppets references here,
 # because its the only other Metallica song I know
 
 
-def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, T.Dict[str, VaultPuppet]]:
+def get_vaults_from_wrstat(
+        volume: int, logger: logging.Logger) -> T.Tuple[int, T.Dict[str, VaultPuppet]]:
     """Reads a wrstat file, and returns information about the files in there that
     are getting tracked by Vault
 
@@ -68,7 +67,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
             try:
                 filepath = base64.b64decode(
                     wr_line_info[0]).decode("UTF-8", "replace")
-            except:
+            except BaseException:
                 logger.warning(f"couldn't decode filepath {wr_line_info[0]}")
                 continue
 
@@ -80,7 +79,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 try:
                     rel_path = base64.b64decode(
                         "".join(path_elems[vault_loc:]).split("-")[1]).decode("UTF-8", "replace").replace("_", "/")
-                except:
+                except BaseException:
                     logger.warning(
                         f"couldn't decode original file path for vault key {filepath}")
                     continue

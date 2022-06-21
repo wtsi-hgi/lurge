@@ -1,7 +1,8 @@
-from directory_config import MAX_LINES_PER_GROUP_PER_VOLUME, REPORT_DIR
-import typing as T
-import gzip
 import datetime
+import gzip
+import typing as T
+
+from directory_config import MAX_LINES_PER_GROUP_PER_VOLUME, REPORT_DIR
 
 
 class GroupSplit:

@@ -1,6 +1,6 @@
-from collections import defaultdict
 import datetime
 import typing as T
+from collections import defaultdict
 
 
 def _datetime_constructor():

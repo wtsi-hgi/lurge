@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import datetime
-from types import ModuleType
-from db_config import SCHEMA
 import logging
+from types import ModuleType
+
 import mysql.connector
+
+from db_config import SCHEMA
 
 
 def get_sql_connection(config: ModuleType) -> mysql.connector.MySQLConnection:

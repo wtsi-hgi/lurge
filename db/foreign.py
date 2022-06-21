@@ -1,6 +1,8 @@
-from db_config import SCHEMA
-import mysql.connector
 import typing as T
+
+import mysql.connector
+
+from db_config import SCHEMA
 
 
 def get_db_foreign_keys(db_conn: mysql.connector.MySQLConnection) -> T.Tuple[

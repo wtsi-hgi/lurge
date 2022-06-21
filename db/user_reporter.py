@@ -1,9 +1,10 @@
 import datetime
-from db_config import SCHEMA
-import db.foreign
 import logging
-from lurge_types.user import UserReport
 import typing as T
+
+import db.foreign
+from db_config import SCHEMA
+from lurge_types.user import UserReport
 
 
 def load_user_reports_to_db(

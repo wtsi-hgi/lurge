@@ -3,7 +3,6 @@
 import logging
 import logging.config
 import sys
-
 import typing as T
 
 from directory_config import LOGGING_CONFIG

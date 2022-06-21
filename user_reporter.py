@@ -4,21 +4,21 @@ import logging
 import multiprocessing
 import sys
 import typing as T
-
-from itertools import repeat
 from collections import defaultdict
-from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
-from lurge_types.user import UserReport
+from itertools import repeat
 
 import db.common
 import db.user_reporter
+import db_config as config
 import utils.finder
 import utils.ldap
 import utils.tsv
-import db_config as config
+from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
+from lurge_types.user import UserReport
 
 
-def get_user_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
+def get_user_info_from_wrstat(
+        volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
     """Reads a wrstat file for a volume, and collates the information by user and group
 
     :param volume: - which volume we're going to look for the wrstat report for
@@ -90,7 +90,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.common.check_date(db_conn, "user_usage", wr_date, volume, logger):
+        if not db.common.check_date(
+                db_conn, "user_usage", wr_date, volume, logger):
             volumes_to_check.append(volume)
             wrstat_dates[volume] = wr_date
 
