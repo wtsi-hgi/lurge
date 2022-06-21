@@ -25,9 +25,19 @@ from lurge_types.group_report import DirectoryReport, GroupReport
 # Setting Up MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
+
+# specify how many workers will be requesting data from wrstat to process
+# PER VOLUME. If this is changed, so should the number of CPUs requested on
+# the compute farm - see cron.sh
 WORKERS_PER_VOLUME = 6
 
 # Setting Up Logging
+# When developing, DEBUG level logging should be fine (in production, INFO level
+# should be used). However, by setting the environment variable LURGE_SUPER_DEBUG_LOG
+# to "1", you can enable even more debugging information, however this is very
+# overwheling, as it informs you when the workers request work (which is a lot)
+# DEBUG level logging is enabled in the INSTANCE environment variable (set in
+# cron.sh) == "dev"
 SUPER_DEBUG_LOG_LEVEL = 5
 logging.addLevelName(SUPER_DEBUG_LOG_LEVEL, "SUPER-DEBUG")
 
@@ -50,6 +60,14 @@ logger = logging.LoggerAdapter(logger, {"rank": f"Rank {rank}", "purpose": ""})
 
 
 class LurgeLogger(logging.LoggerAdapter):
+    """
+    Each LogRecord will have come from a particular MPI process. Its rank
+    will be displayed in the log (see the LoggerAdapter), however, we want to
+    additionally add the purpose of that process, which we define when we 
+    create a LurgeLogger object (this extends LoggerAdapter) by adding properties
+
+    We also define the `super_debug` method (see description of super debug above)
+    """
     def process(self,
                 msg: T.Any,
                 kwargs: T.MutableMapping[str, T.Any]
@@ -104,6 +122,7 @@ def wrstat_reader_worker(
         comm.send(rank, dest=controller_rank)
         data = comm.recv(source=controller_rank)
         if data["msg"] == "DATA":
+            # we've received some lines of wrstat file
             line_block = data["data"]
 
             for line in line_block:
@@ -209,7 +228,7 @@ def reading_wrstat_controller(
         - names: Tuple[Dict[int, str], Dict[int, str]] -
             (group_id: pi name, group_id: group_name)
 
-    Generates DictValues[GroupReport]
+    Generates [GroupReport]
     Example: [
         GroupReport{
             volume: 123,
@@ -237,6 +256,7 @@ def reading_wrstat_controller(
         logger, {
             "purpose": f"Volume {volume} Controller"})  # type: ignore
 
+    # range of the ranks of workers associated to this controller
     workers = range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME *
                     (rank - 1)), len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank))
 
@@ -245,6 +265,7 @@ def reading_wrstat_controller(
     base_directory_info = utils.finder.read_base_directories(
         Path(WRSTAT_DIR))
 
+    # send important information to the workers
     for worker in workers:
         _logger.info(f"sending information to rank {worker}")
         comm.send({
@@ -257,6 +278,12 @@ def reading_wrstat_controller(
         f"/lustre/scratch{volume}", WRSTAT_DIR, _logger)
     wrstat_date = int(os.stat(report_path).st_mtime)
 
+    # check if the DB already has data for this wrstat report
+    # if it does, there's no point going over the file, we're not
+    # going to get any new data, so we'll tell the workers we're done,
+    # (just so they don't hang waiting to do something), and send an empty
+    # array back to the rank 0 process, just so it's not waiting for us
+    # to produce some data
     if db.common.check_date(
         db.common.get_sql_connection(config),
         "lustre_usage",

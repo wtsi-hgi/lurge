@@ -42,6 +42,7 @@ class GroupReport:
     _wrstat_time: int = int(datetime.datetime.now().timestamp())
 
     def __iadd__(self, o: GroupReport):
+        """combining GroupReport objects together"""
         self.usage += o.usage
         self.last_modified = max(self.last_modified, o.last_modified)
 
@@ -65,6 +66,7 @@ class GroupReport:
 
     @property
     def warning(self) -> T.Optional[int]:
+        """returns the warning level for this group (as defined in the config)"""
         def _prediction(
                 history: T.List[T.Tuple[datetime.date, int]], days_from_now: int) -> float:
             points = min(len(history), 2)

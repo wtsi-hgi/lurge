@@ -1,19 +1,21 @@
-# Lustre Usage Report Utilities
-lurge generates a report of Lustre usage for groups on Humgen volumes. Intended to replace [Humgen Lustre Usage-Quota Report](https://gitlab.internal.sanger.ac.uk/hgi/lustre-usage).
+# Lurge
+Lustre Usage Report GEnerator _(i presume)_
 
-Project Inspector collates `stat` data for directories, scanning all Humgen project directories by default. Can print a TSV-formatted table to stdout or put the data directly into a MySQL database.
+---
 
-Group Splitter takes mpistat output files and splits them by the Unix group of the owner, writing each chunk to `split/` in the working directory.
+Lurge summarises information about Lustre usage for groups. Creates data for **Weaver** [(GitHub)](https://github.com/wtsi-hgi/weaver), [(App)](https://apps.hgi.sanger.ac.uk/weaver). Originally intended to replace [Humgen Lustre Usage-Quota Report](https://gitlab.internal.sanger.ac.uk).
+
+The primary part of this is `group_reporter.py`, summarises info from `wrstat` for groups, directories. It puts everything in a MySQL database, and can output a TSV file of the information.
 
 ## Dependencies
-* mysql-connector-python
-* python-ldap
+For Python dependencies, see `requirements.txt`. `group_reporter.py` also requires MPI to run, see [Running MPI Jobs on the Sanger Compute Farm](https://ssg-confluence.internal.sanger.ac.uk/pages/viewpage.action?pageId=101361162).
 
-## Getting started
-1. Clone the repository
-2. Copy `db_config.example.py` to `db_config.py` and enter MySQL database credentials in `db_config.py`
-3. If necessary, edit declarations in `directory_config.py` to point at the correct directories
-4. If necessary, create a Python3 virtual environment and change command in `cron.sh` to point to it 
-5. Run `manager.py {report|inspector|puppeteer|users|splitter}`
+The file `cron.sh` will help, as that is how we run it daily.
 
-See `docs/` for more information
+## Getting Started
+- Copy `db_config.example.py` to `db_config.py` and put the MySQL database credentials in here. Consider setting the permissions to this file to `go-r` as appropriate.
+- If neccesary, edit the configuration in `directory_config.py`.
+- It is recommended you create an environment just for Lurge, using `python3 -m venv .venv`, `source .venv/bin/activate` and `pip install -r requirements.txt` as needed.
+- Use `mpirun` to run the `group_reporter.py` script, or `manager.py` to run the others.
+
+See `docs/` for more information.
