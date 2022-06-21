@@ -8,7 +8,6 @@ import logging
 import logging.config
 import os
 import re
-import subprocess
 import typing as T
 from pathlib import Path
 
@@ -20,6 +19,7 @@ import db.group_reporter
 import db_config as config
 import utils.finder
 import utils.ldap
+from utils.quota import QuotaReader
 import utils.tsv
 from directory_config import FILETYPES, REPORT_DIR, VOLUMES, WRSTAT_DIR
 from lurge_types.group_report import DirectoryReport, GroupReport
@@ -362,20 +362,14 @@ def reading_wrstat_controller(
     # a list, and send that back to the rank 0 node
     _logger.info(
         f"we've got all our reports back from workers for {volume}, so now we'll just add a bit more info")
+
+    quota_reader = QuotaReader(volume)
+
     for key, report in reports.items():
         report.pi_name = pis.get(key[0])
         report.group_name = groups.get(key[0])
-        try:
-            report.quota = int(
-                subprocess.check_output(
-                    ["lfs", "quota", "-gq",
-                     str(report.group_name),
-                     f"/lustre/scratch{volume}"],
-                    encoding="UTF-8").split()[3]) * 1024
-        except subprocess.CalledProcessError:
-            # some groups don't have mercury as a member, which means their
-            # quotas can't be checked and the above command throws an error
-            pass
+        if report.group_name:
+            report.quota = quota_reader.get_quota(report.group_name)
         report.wrstat_time = wrstat_date
         report.base_path = key[1]
 
