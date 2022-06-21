@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import base64
 import datetime
 import gzip
@@ -12,6 +13,7 @@ import typing as T
 from pathlib import Path
 
 from mpi4py import MPI
+import setproctitle
 
 import db.common
 import db.group_reporter
@@ -107,6 +109,7 @@ def wrstat_reader_worker(
     10      Device ID
     """
 
+    setproctitle.setproctitle(f"Lurge - Volume {volume} Worker (Rank {rank})")
     _logger = LurgeLogger(
         logger, {
             "purpose": f"Volume {volume} Worker"})  # type: ignore
@@ -219,7 +222,8 @@ def wrstat_reader_worker(
 
 def reading_wrstat_controller(
     volume: int,
-    names: T.Tuple[T.Dict[int, str], T.Dict[int, str]]
+    names: T.Tuple[T.Dict[int, str], T.Dict[int, str]],
+    start_days_ago: int = 0
 ) -> None:
     """
     controls all the workers for a particular volume (rank <= num of volumes)
@@ -253,6 +257,7 @@ def reading_wrstat_controller(
 
     """
 
+    setproctitle.setproctitle(f"Lurge - Volume {volume} Controller")
     _logger = LurgeLogger(
         logger, {
             "purpose": f"Volume {volume} Controller"})  # type: ignore
@@ -276,7 +281,7 @@ def reading_wrstat_controller(
 
     # Format paths and find the wrstat report
     report_path = utils.finder.find_report(
-        f"/lustre/scratch{volume}", WRSTAT_DIR, _logger)
+        f"/lustre/scratch{volume}", WRSTAT_DIR, _logger, days_ago=start_days_ago)
     wrstat_date = int(os.stat(report_path).st_mtime)
 
     # check if the DB already has data for this wrstat report
@@ -381,6 +386,7 @@ def reading_wrstat_controller(
 def main_controller() -> None:
     """carried out by the rank 0 process"""
 
+    setproctitle.setproctitle("Lurge - Main Controller")
     _logger = LurgeLogger(
         logger, {
             "purpose": "Main Controller"})  # type: ignore
@@ -413,10 +419,13 @@ def main_controller() -> None:
 
     # Writing to TSV
     _logger.info("writing data to TSV")
-    date = datetime.date.fromtimestamp(
-        next(x._wrstat_time for y in all_reports for x in y)).isoformat()  # type: ignore
-    utils.tsv.create_tsv_report(all_reports, date, REPORT_DIR, _logger)
-    utils.tsv.create_tsv_inspector_report(all_reports, date, _logger)
+    try:
+        date = datetime.date.fromtimestamp(
+            next(x._wrstat_time for y in all_reports for x in y)).isoformat()  # type: ignore
+        utils.tsv.create_tsv_report(all_reports, date, REPORT_DIR, _logger)
+        utils.tsv.create_tsv_inspector_report(all_reports, date, _logger)
+    except StopIteration:
+        _logger.warning("didn't actually get any data - not writing to TSV")
 
     _logger.info("Done")
 
@@ -434,6 +443,10 @@ if __name__ == "__main__":
     to a volume controller rank
     """
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--start-days-ago', type=int, default=0)
+    args = parser.parse_args()
+
     if rank == 0:
         # main process
         main_controller()
@@ -441,7 +454,10 @@ if __name__ == "__main__":
     elif rank <= len(VOLUMES):
         # main process for each volume
         data = comm.recv(source=0)
-        reading_wrstat_controller(data["volume"], data["group_pi_names"])
+        reading_wrstat_controller(
+            data["volume"],
+            data["group_pi_names"],
+            start_days_ago=args.start_days_ago)
 
     else:
         # any of the worker processes

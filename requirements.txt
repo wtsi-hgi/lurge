@@ -1,3 +1,4 @@
 python-ldap
 mysql-connector-python
 mpi4py
+setproctitle
