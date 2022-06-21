@@ -4,6 +4,8 @@ source /usr/local/lsf/conf/profile.lsf
 INSTANCE="prod"
 # INSTANCE="dev"
 
+export INSTANCE
+
 SOFTWARE_ROOT="/software/hgi/installs/lurge"
 export REPORT_DIR="/lustre/scratch119/humgen/teams/hgi/lurge/$INSTANCE"
 

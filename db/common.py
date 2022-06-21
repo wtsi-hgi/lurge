@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from types import ModuleType
 from db_config import SCHEMA
@@ -22,7 +24,7 @@ def get_sql_connection(config: ModuleType) -> mysql.connector.MySQLConnection:
 
 
 def check_date(conn: mysql.connector.MySQLConnection, table: str, date: datetime.date,
-               volume: int, logger: logging.Logger, base_dir_usage: bool = False) -> bool:
+               volume: int, logger: logging.LoggerAdapter[logging.Logger], base_dir_usage: bool = False) -> bool:
     # Checks the dates in the DB table to see if the date already has data for
     # that particular volume
     cursor = conn.cursor(buffered=True)

@@ -4,11 +4,11 @@ import os
 WRSTAT_DIR = "/lustre/scratch123/admin/team94/wrstat/output/"
 REPORT_DIR = os.environ["REPORT_DIR"] + "/"
 VOLUMES = [117, 118, 119, 123, 124]
-LOGGING_CONFIG = "/software/hgi/installs/lurge/etc/logging.dev.conf"
+LOGGING_CONFIG = "/software/hgi/installs/lurge/etc/logging.conf"
 
 # Manager Config
 # max number of days ago to search for wrstat
-MAX_DAYS_AGO = 20
+MAX_DAYS_AGO = 10
 
 # Reporter Config
 # Warning System

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import csv
 import logging
 import logging.config
@@ -11,7 +13,7 @@ from utils import humanise
 
 
 def create_tsv_report(group_reports: T.List[T.List[GroupReport]],
-                      date: str, report_dir: str, logger: logging.Logger) -> None:
+                      date: str, report_dir: str, logger: logging.LoggerAdapter[logging.Logger]) -> None:
     """
     Reads the contents of tables in tmp_db and writes them to a .tsv formatted
     file.
@@ -65,7 +67,7 @@ def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserRepo
 
 
 def create_tsv_inspector_report(
-        reports: T.List[T.List[GroupReport]], date: str, logger: logging.Logger) -> None:
+        reports: T.List[T.List[GroupReport]], date: str, logger: logging.LoggerAdapter[logging.Logger]) -> None:
     logger.info("writing inspector info to TSV file")
 
     _filetypes = sorted(FILETYPES.keys())

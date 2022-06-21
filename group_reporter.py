@@ -19,13 +19,46 @@ import db_config as config
 import utils.finder
 import utils.ldap
 import utils.tsv
-from directory_config import (FILETYPES, LOGGING_CONFIG, REPORT_DIR, VOLUMES,
-                              WRSTAT_DIR)
+from directory_config import FILETYPES, REPORT_DIR, VOLUMES, WRSTAT_DIR
 from lurge_types.group_report import DirectoryReport, GroupReport
 
+# Setting Up MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 WORKERS_PER_VOLUME = 6
+
+# Setting Up Logging
+SUPER_DEBUG_LOG_LEVEL = 5
+logging.addLevelName(SUPER_DEBUG_LOG_LEVEL, "SUPER-DEBUG")
+
+LOG_LEVEL = SUPER_DEBUG_LOG_LEVEL if os.getenv("LURGE_SUPER_DEBUG_LOG") \
+    else logging.DEBUG if os.getenv("INSTANCE") == "dev" \
+    else logging.INFO
+
+logger = logging.getLogger(__name__)
+logger.setLevel(LOG_LEVEL)
+
+_log_handler = logging.StreamHandler()
+_log_handler.setLevel(LOG_LEVEL)
+
+_log_formatter = logging.Formatter(
+    "%(asctime)s|%(levelname)s|%(rank)s|%(purpose)s|%(message)s")
+_log_handler.setFormatter(_log_formatter)
+
+logger.addHandler(_log_handler)
+logger = logging.LoggerAdapter(logger, {"rank": f"Rank {rank}", "purpose": ""})
+
+
+class LurgeLogger(logging.LoggerAdapter):
+    def process(self,
+                msg: T.Any,
+                kwargs: T.MutableMapping[str, T.Any]
+                ) -> tuple[T.Any, T.MutableMapping[str, T.Any]]:
+        logger.extra.update(self.extra)  # type: ignore
+        return super().process(msg, kwargs)
+
+    def super_debug(self, msg: str):
+        self.log(SUPER_DEBUG_LOG_LEVEL, msg)
 
 
 def wrstat_reader_worker(
@@ -55,12 +88,19 @@ def wrstat_reader_worker(
     10      Device ID
     """
 
+    _logger = LurgeLogger(
+        logger, {
+            "purpose": f"Volume {volume} Worker"})  # type: ignore
+
     new_reports: T.Dict[T.Tuple[int, str], GroupReport] = {}
 
     controller_rank: int = (
         (rank - len(VOLUMES) - 1) // WORKERS_PER_VOLUME) + 1
+    _logger.debug(
+        f"I'm Rank {rank} for Volume {volume} - my controller is rank {controller_rank}")
 
     while True:
+        _logger.super_debug("requesting work")
         comm.send(rank, dest=controller_rank)
         data = comm.recv(source=controller_rank)
         if data["msg"] == "DATA":
@@ -152,6 +192,7 @@ def wrstat_reader_worker(
                                 gid, base_path)].subdirs[subdir].filetypes[filetype] += size
 
         elif data["msg"] == "DONE":
+            _logger.debug("Done - sending back data")
             comm.send(new_reports, dest=controller_rank)
             return
 
@@ -192,38 +233,60 @@ def reading_wrstat_controller(
 
     """
 
+    _logger = LurgeLogger(
+        logger, {
+            "purpose": f"Volume {volume} Controller"})  # type: ignore
+
+    workers = range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME *
+                    (rank - 1)), len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank))
+
     pis, groups = names
+    logger.debug(f"reading base directory info for volume {volume}")
     base_directory_info = utils.finder.read_base_directories(
         Path(WRSTAT_DIR))
 
-    # Format paths and find the wrstat report
-    report_path = utils.finder.find_report(
-        f"/lustre/scratch{volume}", WRSTAT_DIR, None)
-    wrstat_date = int(os.stat(report_path).st_mtime)
-
-    # Reading over every line in the wrstat report
-    lines_read = 0
-
-    for worker in range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * (rank - 1)),
-                        len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank)):
+    for worker in workers:
+        _logger.info(f"sending information to rank {worker}")
         comm.send({
             "base_directories": base_directory_info,
             "volume": volume
         }, dest=worker)
 
+    # Format paths and find the wrstat report
+    report_path = utils.finder.find_report(
+        f"/lustre/scratch{volume}", WRSTAT_DIR, _logger)
+    wrstat_date = int(os.stat(report_path).st_mtime)
+
+    if db.common.check_date(
+        db.common.get_sql_connection(config),
+        "lustre_usage",
+        datetime.date.fromtimestamp(wrstat_date),
+        volume,
+        _logger,
+            True):
+        comm.send([], dest=0)
+        for worker in workers:
+            comm.send({"msg": "DONE"}, dest=worker)
+        return
+
+    # Reading over every line in the wrstat report
+    lines_read = 0
+
     # We send workers blocks of 250 lines to process
     # This is so the workers aren't constantly asking for work
+    _logger.info(f"reading wrstat file {report_path}")
     with gzip.open(report_path, "rt") as wrstat:
         _line_block: T.Set[str] = set()
         for line in wrstat:
             lines_read += 1
             if lines_read % 5000000 == 0:
-                print(f"read {lines_read} from {volume}")
+                _logger.debug(f"read {lines_read} from {volume}")
             _line_block.add(line)
 
             if len(_line_block) == 250:
-
                 msg = comm.recv()
+                _logger.super_debug(
+                    f"Rank {msg} requested work - sending it some")
                 comm.send({
                     "msg": "DATA",
                     "data": _line_block
@@ -236,8 +299,12 @@ def reading_wrstat_controller(
 
     # When we've sent the entire wrstat file to workers, we can iterate over every
     # worker listening to this controller, and send a DONE message.
+    _logger.info(
+        "we're done reading wrstat file - let's let all the workers know")
     for worker in range(len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * (rank - 1)),
                         len(VOLUMES) + 1 + (WORKERS_PER_VOLUME * rank)):
+        _logger.debug(
+            f"letting rank {worker} know we're done, and waiting for response")
         comm.send({"msg": "DONE"}, dest=worker)
 
         # Then we can wait for a response from every worker, hopefully containing
@@ -260,7 +327,8 @@ def reading_wrstat_controller(
     # Once we've got all the data from the workers collected, we can fill
     # in some gaps, i.e. group name, and then put the finished reports in
     # a list, and send that back to the rank 0 node
-    # directory_reports_lst: T.List[NewGroupReport] = []
+    _logger.info(
+        f"we've got all our reports back from workers for {volume}, so now we'll just add a bit more info")
     for key, report in reports.items():
         report.pi_name = pis.get(key[0])
         report.group_name = groups.get(key[0])
@@ -278,40 +346,51 @@ def reading_wrstat_controller(
         report.wrstat_time = wrstat_date
         report.base_path = key[1]
 
-    comm.send(reports.values(), dest=0)
+    _logger.info("done - sending data back to main controller")
+    comm.send(list(reports.values()), dest=0)
 
 
 def main_controller() -> None:
     """carried out by the rank 0 process"""
 
-    logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
-    logger = logging.getLogger(__name__)
+    _logger = LurgeLogger(
+        logger, {
+            "purpose": "Main Controller"})  # type: ignore
 
     # LDAP Information
+    _logger.info("Getting LDAP Information")
     ldap_con = utils.ldap.get_ldap_connection()
     group_pi_names = utils.ldap.get_groups_ldap_info(ldap_con)
 
+    _logger.info("Sending Info to Volume Controllers")
     for idx, vol in enumerate(VOLUMES):
         # send information to all the volume controllers
+        _logger.debug(f"Sending to rank {idx+1} (volume {vol})")
         comm.send({
             "volume": vol,
             "group_pi_names": group_pi_names
         }, dest=idx + 1)
 
+    _logger.info("waiting on info from volume controllers")
     all_reports: T.List[T.List[GroupReport]] = []
-    for idx, _ in enumerate(VOLUMES):
+    for idx, vol in enumerate(VOLUMES):
         # wait for information back from these controllers
         all_reports.append(comm.recv(source=idx + 1))
+        _logger.debug(f"got info back from rank {idx + 1} (volume {vol})")
 
     # Write to MySQL database
+    _logger.info("writing to SQL DB")
     db_conn = db.common.get_sql_connection(config)
-    db.group_reporter.load_reports_into_db(db_conn, all_reports)
+    db.group_reporter.load_reports_into_db(db_conn, all_reports, _logger)
 
     # Writing to TSV
+    _logger.info("writing data to TSV")
     date = datetime.date.fromtimestamp(
-        all_reports[0][0]._wrstat_time).isoformat()  # type: ignore
-    utils.tsv.create_tsv_report(all_reports, date, REPORT_DIR, logger)
-    utils.tsv.create_tsv_inspector_report(all_reports, date, logger)
+        next(x._wrstat_time for y in all_reports for x in y)).isoformat()  # type: ignore
+    utils.tsv.create_tsv_report(all_reports, date, REPORT_DIR, _logger)
+    utils.tsv.create_tsv_inspector_report(all_reports, date, _logger)
+
+    _logger.info("Done")
 
 
 if __name__ == "__main__":
@@ -330,7 +409,7 @@ if __name__ == "__main__":
     if rank == 0:
         # main process
         main_controller()
-    
+
     elif rank <= len(VOLUMES):
         # main process for each volume
         data = comm.recv(source=0)
