@@ -15,19 +15,20 @@ class VaultPuppet:
         self._size: T.Optional[int] = None
         self._owner_id: T.Optional[int] = None
         self.owner: T.Optional[str] = None
-        self._group_id: T.Optional[str] = None
+        self._group_id: T.Optional[int] = None
         self.group: T.Optional[str] = None
         self._mtime: T.Optional[datetime.date] = None
 
-    def just_call_my_name(self, size: int, owner: str,
+    def just_call_my_name(self, size: int, owner_id: int,
                           mtime: int, group_id: int):
         self._size = size
-        self._owner_id = owner
+        self._owner_id = owner_id
         self._mtime = datetime.datetime.fromtimestamp(mtime).date()
         self._group_id = group_id
 
-    def pull_your_strings(self, ldap_conn, groups):
-        self.owner = utils.ldap.get_username(ldap_conn, self._owner_id)
+    def pull_your_strings(self, ldap_conn, groups: T.Dict[int, str]):
+        if self._owner_id:
+            self.owner = utils.ldap.get_username(ldap_conn, self._owner_id)
         self.state = self.state.capitalize()
 
         try:

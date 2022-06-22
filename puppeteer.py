@@ -131,9 +131,9 @@ def get_vaults_from_wrstat(
                 puppet = master_of_puppets[int(wr_line_info[8])]
                 puppet.just_call_my_name(
                     size=int(wr_line_info[1]),
-                    owner=wr_line_info[2],
+                    owner_id=int(wr_line_info[2]),
                     mtime=int(wr_line_info[5]),
-                    group_id=wr_line_info[3]
+                    group_id=int(wr_line_info[3])
                 )
 
     ldap_conn = utils.ldap.get_ldap_connection()
