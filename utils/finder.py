@@ -43,8 +43,8 @@ def getParents(directory: str) -> T.List[str]:
     return ["/".join(split_dir[:i]) for i in range(1, len(split_dir))]
 
 
-def read_base_directories(report_dir: Path) -> T.Set[T.Tuple[str, str]]:
-    with open("/lustre/scratch119/humgen/teams/hgi/users/mg38/small.tsv") as f:  # TODO
+def read_base_directories(wrstat_dir: Path) -> T.Set[T.Tuple[str, str]]:
+    with open(f"{wrstat_dir}/base.dirs") as f:
         # One Line is a Group:Base Directory Pairing
         # (group being gid)
         # there can be many groups to one base directory,
