@@ -12,7 +12,7 @@ from directory_config import MAX_DAYS_AGO
 
 def find_report(scratch_disk: str, report_dir: str,
                 logger: T.Optional[logging.LoggerAdapter[logging.Logger]] = None, days_ago: int = 0) -> str:
-    def _mtime(f):
+    def _mtime(f: str):
         return os.stat(f).st_mtime
 
     volume = scratch_disk[-3:]
@@ -44,7 +44,13 @@ def getParents(directory: str) -> T.List[str]:
 
 
 def read_base_directories(wrstat_dir: Path) -> T.Set[T.Tuple[str, str]]:
-    with open(f"{wrstat_dir}/base.dirs") as f:
+    def _mtime(f: str) -> float:
+        return os.stat(f).st_mtime
+
+    _base_dir_files = glob.glob(f"{wrstat_dir}*.basedirs")
+    _base_dir_files.sort(reverse=True, key=_mtime)
+    
+    with open(_base_dir_files[0]) as f:
         # One Line is a Group:Base Directory Pairing
         # (group being gid)
         # there can be many groups to one base directory,
