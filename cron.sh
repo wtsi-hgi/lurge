@@ -25,12 +25,12 @@ bsub \
 # i.e. 5 volumes (117, 118, 119, 123, 124), 6 workers per volume = 36 cores 
 NUM_CPUs=36
 
-export MODULEPATH=/software/modules:$MODULEPATH
-module load ISG/openmpi
+export LD_LIBRARY_PATH=/software/openmpi-4.0.3/lib:$LD_LIBRARY_PATH
+export PATH=/software/openmpi-4.0.3/bin:$PATH
 
 bsub \
-    -o $REPORT_DIR/report-logs/$(date '+%Y-%m-%d').%J.inspector.out \
-    -e $REPORT_DIR/report-logs/$(date '+%Y-%m-%d').%J.inspector.err \
+    -o $REPORT_DIR/report-logs/$(date '+%Y-%m-%d').%J.group_report.out \
+    -e $REPORT_DIR/report-logs/$(date '+%Y-%m-%d').%J.group_report.err \
     -G hgi \
     -R "select[mem>3000] rusage[mem=3000]" -M 3000 -n $NUM_CPUs \
     "mpirun $SOFTWARE_ROOT/.venv/bin/python3 $SOFTWARE_ROOT/$INSTANCE/group_reporter.py"

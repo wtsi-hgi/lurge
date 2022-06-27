@@ -50,6 +50,9 @@ def read_base_directories(wrstat_dir: Path) -> T.Set[T.Tuple[str, str]]:
     _base_dir_files = glob.glob(f"{wrstat_dir}*.basedirs")
     _base_dir_files.sort(reverse=True, key=_mtime)
     
+    if len(_base_dir_files) == 0:
+        raise FileNotFoundError("Base Directories File Not Found")
+
     with open(_base_dir_files[0]) as f:
         # One Line is a Group:Base Directory Pairing
         # (group being gid)
