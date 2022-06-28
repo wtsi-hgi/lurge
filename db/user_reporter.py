@@ -11,7 +11,7 @@ def load_user_reports_to_db(
     conn,
     volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]],
     usernames: T.Dict[int, str],
-    user_groups: T.Dict[str, T.List[T.Tuple[str, str]]],
+    user_groups: T.Dict[str, T.Set[T.Tuple[str, str]]],
     wrstat_dates: T.Dict[int, datetime.date],
     logger: logging.Logger
 ):

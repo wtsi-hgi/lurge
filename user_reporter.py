@@ -111,11 +111,11 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     # For every user, get their username and the groups they're in
     unique_uids = set([int(x) for y in user_reports for x in y.keys()])
     usernames: T.Dict[int, str] = {}
-    user_groups: T.Dict[str, T.List[T.Tuple[str, str]]] = {}
+    user_groups: T.Dict[str, T.Set[T.Tuple[str, str]]] = {}
     for uid in unique_uids:
         usernames[uid] = utils.ldap.get_username(ldap_conn, uid)
-        user_groups[str(uid)] = set([(groups[key], key)
-                                     if key in groups else ("-", key)
+        user_groups[str(uid)] = set([(groups[int(key)], key)
+                                     if int(key) in groups else ("-", key)
                                      for vol in user_reports
                                      for (user, report) in vol.items()
                                      for key in list(report.size.keys())

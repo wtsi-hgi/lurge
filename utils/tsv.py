@@ -41,7 +41,7 @@ def create_tsv_report(group_reports: T.List[T.List[GroupReport]],
 
 
 def create_tsv_user_report(user_reports: T.Dict[int, T.DefaultDict[str, UserReport]], usernames: T.Dict[int, str],
-                           user_groups: T.Dict[str, T.List[T.Tuple[str, str]]], logger: logging.Logger) -> None:
+                           user_groups: T.Dict[str, T.Set[T.Tuple[str, str]]], logger: logging.Logger) -> None:
     logger.info("Writing user report info to TSV file")
     with open(f"{REPORT_DIR}user-reports/{datetime.today().strftime('%Y-%m-%d')}.tsv", "w", newline="") as rf:
         writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
