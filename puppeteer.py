@@ -1,27 +1,26 @@
 import base64
 import datetime
 import gzip
-from itertools import repeat
 import logging
 import multiprocessing
 import sys
 import typing as T
+from itertools import repeat
 
 import db.common
 import db.puppeteer
+import db_config as config
 import utils.finder
 import utils.ldap
-
-import db_config as config
-
+from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
 from lurge_types.vault import VaultPuppet
-from directory_config import VOLUMES, WRSTAT_DIR, LOGGING_CONFIG
 
 # If Vault has Enter Sandman references in, I'm putting Master of Puppets references here,
 # because its the only other Metallica song I know
 
 
-def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, T.Dict[str, VaultPuppet]]:
+def get_vaults_from_wrstat(
+        volume: int, logger: logging.Logger) -> T.Tuple[int, T.Dict[str, VaultPuppet]]:
     """Reads a wrstat file, and returns information about the files in there that
     are getting tracked by Vault
 
@@ -47,7 +46,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
         }
 
     """
-    report_path = utils.finder.findReport(
+    report_path = utils.finder.find_report(
         f"scratch{volume}", WRSTAT_DIR, logger)
     master_of_puppets: T.Dict[str, VaultPuppet] = {}
 
@@ -68,7 +67,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
             try:
                 filepath = base64.b64decode(
                     wr_line_info[0]).decode("UTF-8", "replace")
-            except:
+            except BaseException:
                 logger.warning(f"couldn't decode filepath {wr_line_info[0]}")
                 continue
 
@@ -80,7 +79,7 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 try:
                     rel_path = base64.b64decode(
                         "".join(path_elems[vault_loc:]).split("-")[1]).decode("UTF-8", "replace").replace("_", "/")
-                except:
+                except BaseException:
                     logger.warning(
                         f"couldn't decode original file path for vault key {filepath}")
                     continue
@@ -132,13 +131,13 @@ def get_vaults_from_wrstat(volume: int, logger: logging.Logger) -> T.Tuple[int, 
                 puppet = master_of_puppets[int(wr_line_info[8])]
                 puppet.just_call_my_name(
                     size=int(wr_line_info[1]),
-                    owner=wr_line_info[2],
+                    owner_id=int(wr_line_info[2]),
                     mtime=int(wr_line_info[5]),
-                    group_id=wr_line_info[3]
+                    group_id=int(wr_line_info[3])
                 )
 
-    ldap_conn = utils.ldap.getLDAPConnection()
-    _, group_info = utils.ldap.get_humgen_ldap_info(ldap_conn)
+    ldap_conn = utils.ldap.get_ldap_connection()
+    _, group_info = utils.ldap.get_groups_ldap_info(ldap_conn)
     for puppet in master_of_puppets.values():
         puppet.pull_your_strings(ldap_conn, group_info)
 
@@ -151,7 +150,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     logger = logging.getLogger(__name__)
 
     # Creating SQL Connection
-    db_conn = db.common.getSQLConnection(config)
+    db_conn = db.common.get_sql_connection(config)
 
     # Finding most recent wrstat files for each volume
     # We only care if the most recent wrstat file isn't already in the database
@@ -159,7 +158,7 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in volumes:
-        latest_wr = utils.finder.findReport(
+        latest_wr = utils.finder.find_report(
             f"scratch{volume}", WRSTAT_DIR, logger)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(

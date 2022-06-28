@@ -1,25 +1,26 @@
 import argparse
 import datetime
-import gzip
 import glob
+import gzip
 import logging
 import logging.config
-import os
-from lurge_types.splitter import GroupSplit
 import multiprocessing
+import os
+import subprocess
+import time
 import typing as T
 from collections import defaultdict
 from itertools import repeat
-import subprocess
-import time
 
 import utils.finder
 import utils.ldap
+from directory_config import (LOGGING_CONFIG, REPORT_DIR, VOLUMES, WRSTAT_DIR,
+                              Treeserve)
+from lurge_types.splitter import GroupSplit
 
-from directory_config import LOGGING_CONFIG, REPORT_DIR, Treeserve, WRSTAT_DIR, VOLUMES
 
-
-def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
+def get_group_info_from_wrstat(
+        volume: int, groups: T.Dict[str, str], logger: logging.Logger) -> T.DefaultDict[str, GroupSplit]:
     """processes a wrstat file to get us group information
 
     :param volume: - the volume we're going to be searching through
@@ -39,7 +40,7 @@ def get_group_info_from_wrstat(volume: int, groups: T.Dict[str, str], logger: lo
         }
     """
 
-    report = utils.finder.findReport(f"scratch{volume}", WRSTAT_DIR, logger)
+    report = utils.finder.find_report(f"scratch{volume}", WRSTAT_DIR, logger)
 
     if report is None:
         raise FileNotFoundError(
@@ -89,8 +90,8 @@ def main(upload: bool = True) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
-    ldap_conn = utils.ldap.getLDAPConnection()
-    _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
+    ldap_conn = utils.ldap.get_ldap_connection()
+    _, groups = utils.ldap.get_groups_ldap_info(ldap_conn)
 
     date_str = datetime.datetime.now().strftime("%Y%m%d")
 

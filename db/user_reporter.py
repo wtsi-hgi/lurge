@@ -1,9 +1,10 @@
 import datetime
-from db_config import SCHEMA
-import db.foreign
 import logging
-from lurge_types.user import UserReport
 import typing as T
+
+import db.foreign
+from db_config import SCHEMA
+from lurge_types.user import UserReport
 
 
 def load_user_reports_to_db(
@@ -20,7 +21,7 @@ def load_user_reports_to_db(
 
     # First, we'll get all the foreign keys
 
-    _, groups, volumes, _, users, _ = db.foreign.get_db_foreign_keys(conn)
+    _, groups, volumes, _, users, _, _ = db.foreign.get_db_foreign_keys(conn)
 
     # Now, we'll go through every record (just like in the TSV generator) and
     # add a DB record for all of them
@@ -56,8 +57,8 @@ def load_user_reports_to_db(
                         db_group = groups[grp_name]
                     except KeyError:
                         cursor.execute(
-                            f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (grp_name, 1))
-                        new_id = cursor.lastrowid
+                            f"INSERT INTO {SCHEMA}.unix_group (group_name) VALUES (%s);", (grp_name,))
+                        new_id: int = cursor.lastrowid
                         conn.commit()
                         groups[grp_name] = new_id
                         db_group = new_id

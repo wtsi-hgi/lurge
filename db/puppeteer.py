@@ -1,16 +1,16 @@
 import datetime
-from db_config import SCHEMA
 import logging
 import typing as T
-
-from lurge_types.vault import VaultPuppet
 
 import mysql.connector
 
 import db.foreign
+from db_config import SCHEMA
+from lurge_types.vault import VaultPuppet
 
 
-def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]], wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger) -> None:
+def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet]]],
+                wrstat_dates: T.Dict[int, datetime.date], logger: logging.Logger) -> None:
     logger.info("Writing results to MySQL database")
 
     cursor = conn.cursor()
@@ -20,10 +20,11 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
     # ACTIONS WILL NOT BE ADDED LATER
     # We only care about those already in the DB
 
-    _, groups, volumes, actions, users, _ = db.foreign.get_db_foreign_keys(
+    _, groups, volumes, actions, users, _, _ = db.foreign.get_db_foreign_keys(
         conn)
 
-    # Now, we're going to go through all the VaultReports and add each as a DB record
+    # Now, we're going to go through all the VaultReports and add each as a DB
+    # record
     for volume, reports in vault_reports:
         logger.debug(f"Databasing {volume}")
         for vault in reports.values():
@@ -39,8 +40,8 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                     db_group = groups[vault.group]
                 except KeyError:
                     cursor.execute(
-                        f"INSERT INTO {SCHEMA}.unix_group (group_name, is_humgen) VALUES (%s, %s);", (vault.group, 1))
-                    new_id = cursor.lastrowid
+                        f"INSERT INTO {SCHEMA}.unix_group (group_name) VALUES (%s);", (vault.group,))
+                    new_id: int = cursor.lastrowid
                     groups[vault.group] = new_id
                     db_group = new_id
             else:
@@ -65,7 +66,7 @@ def write_to_db(conn, vault_reports: T.List[T.Tuple[int, T.Dict[str, VaultPuppet
                 volumes[f"scratch{volume}"] = new_id
 
             # Add new data
-            query = f"""INSERT INTO {SCHEMA}.vault (record_date, filepath, group_id, vault_action_id, size, 
+            query = f"""INSERT INTO {SCHEMA}.vault (record_date, filepath, group_id, vault_action_id, size,
             user_id, last_modified, volume_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
 
             cursor.execute(query, (

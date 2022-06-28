@@ -4,21 +4,21 @@ import logging
 import multiprocessing
 import sys
 import typing as T
-
-from itertools import repeat
 from collections import defaultdict
-from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
-from lurge_types.user import UserReport
+from itertools import repeat
 
 import db.common
 import db.user_reporter
+import db_config as config
 import utils.finder
 import utils.ldap
 import utils.tsv
-import db_config as config
+from directory_config import LOGGING_CONFIG, VOLUMES, WRSTAT_DIR
+from lurge_types.user import UserReport
 
 
-def get_user_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
+def get_user_info_from_wrstat(
+        volume: int, logger: logging.Logger) -> T.DefaultDict[str, UserReport]:
     """Reads a wrstat file for a volume, and collates the information by user and group
 
     :param volume: - which volume we're going to look for the wrstat report for
@@ -41,7 +41,7 @@ def get_user_info_from_wrstat(volume: int, logger: logging.Logger) -> T.DefaultD
     In a UserReport object, size and mtime are DefaultDict[group id (str), value (int/date)]
 
     """
-    report_path = utils.finder.findReport(
+    report_path = utils.finder.find_report(
         f"scratch{volume}", WRSTAT_DIR, logger
     )
 
@@ -78,19 +78,20 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
     logging.config.fileConfig(LOGGING_CONFIG, disable_existing_loggers=False)
     logger = logging.getLogger(__name__)
 
-    db_conn = db.common.getSQLConnection(config)
+    db_conn = db.common.get_sql_connection(config)
 
     volumes_to_check: T.List[int] = []
     wrstat_dates: T.Dict[int, datetime.date] = {}
 
     for volume in volumes:
-        latest_wr = utils.finder.findReport(
+        latest_wr = utils.finder.find_report(
             f"scratch{volume}", WRSTAT_DIR, logger)
         wr_date_str = latest_wr.split("/")[-1].split("_")[0]
         wr_date = datetime.date(int(wr_date_str[:4]), int(
             wr_date_str[4:6]), int(wr_date_str[6:8]))
 
-        if not db.common.check_date(db_conn, "user_usage", wr_date, volume, logger):
+        if not db.common.check_date(
+                db_conn, "user_usage", wr_date, volume, logger):
             volumes_to_check.append(volume)
             wrstat_dates[volume] = wr_date
 
@@ -100,8 +101,8 @@ def main(volumes: T.List[int] = VOLUMES) -> None:
         ))
 
     # Get some information from LDAP
-    ldap_conn = utils.ldap.getLDAPConnection()
-    _, groups = utils.ldap.get_humgen_ldap_info(ldap_conn)
+    ldap_conn = utils.ldap.get_ldap_connection()
+    _, groups = utils.ldap.get_groups_ldap_info(ldap_conn)
 
     volume_user_reports: T.Dict[int, T.DefaultDict[str, UserReport]] = {}
     for i, rep in enumerate(volumes_to_check):

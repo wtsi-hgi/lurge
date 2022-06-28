@@ -4,71 +4,66 @@
 
 ### `cron.sh`
 
-- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `inspector`, `puppeteer` and `users`)
+- bsub: `manager.py`: all parameters passed are the lurge modules to run (`reporter`, `puppeteer` and `users`)
+- also runs the group_reporter separetly through an `mpirun` call
 
 ### `manager.py`
 
-- runs `reporter.py`, `inspector.py`, `puppeteer.py` or `user_reporter.py` as required
+- runs `puppeteer.py`, `user_reporter.py` or `group_splitter.py` as required
 
-### `report.py`
+### `group_reporter.py`
 
-- estableses connection to MySQL (`db/common.py`)
-- finds the latest wrstat for each volume, and checks if its already in the database. we only care if its new data (`utils/finder.py` and `db/report.py`)
-- estableshes connection to Sanger LDAP (`utils/ldap.py`)
-- collects humgen ldap groups, with gid, name and PI (`utils/ldap.py`)
-- runs the following for each wrstat input (multiproc pool)
-    - reads wrstat filename to determine volume
-    - deserialises group table into memory
-    - iterates over the wrstat file, accumalating group data into memory. this is stored in GroupReport objects (`lurge_types/group_report.py`)
-        - it checks each record to see if it starts with a filepath defined in the PSEUDO_GROUPS config. If so, it overwrites the group on the record with the pseudo group. This allows us to get data sorted by filepath instead of by group, and any downstream code doesn't care.
-    - for each group accumalated:
-      - fill in blanks from ldap if neccesary
-      - attempt to get quota and consumption by running `lfs quota`
-      - check for archived directories (old .imirrored file)
-      - returns the group data for the volume
-    - transfers the data to the mysql database (`db/report.py`)
+This uses MPI, and what happens in each instance is based on its rank. (0..n)
+
+**Rank 0:**
+- get groups from ldap (`utils.ldap.py`)
+- send information to controllers per volume
+- wait for a response from those
+- write everything to database (`db/group_reporter.py`)
+    - First, we're going to load various foreign keys into memory
+    - Next, as we're replacing the old data, we're going to tag all the project_names with `.hgi.old.` at the start, instead of deleting it. This'll save us if the additions go wrong
+    - For each report we have, we're going to get the human readable form of the path (i.e. humgen/projects instead of humgen/realdata/mdt0/projects)
+    - We'll add anything to the foreign tables if neccesary
+    - We'll then add stuff to the `lustre_usage` MySQL table
         - one of the fields here is `report.warning`, which calculates the status of that group (logic in `lurge_types/group_report.py`).
-            - at the start we load all the historical data for each group (`db/__init__.py`)
-            - we take the historical data for this group, and calculate the predictions in some days from now
-            - this is compared to the values in `directory_config.py`, which are days_from_now:max_percentage pairs for each warning level
-            - it then returns the max warning level (the worst and most serious warning)
-            - currently, this is:
-            <table><tr><th></th><th>Now + 3 Days</th><th>Now + 7 Days</th></tr>
-            <tr><th>Usage >95%</th><td>Not OK (3)</td><td>Not OK (3)</td></tr>
-            <tr><th>Usage >85%</th><td>Not OK (3)</td><td>Kinda OK (2)</td></tr>
-            <tr><th>Usage >80%</th><td> Kinda OK (2) </td><td> - </td></tr>
-            </table>
-    - writes output to `.tsv` file (`utils/tsv.py`)
-    - removes sqlite file
+                - at the start we load all the historical data for each group (`db/__init__.py`)
+                - we take the historical data for this group, and calculate the predictions in some days from now
+                - this is compared to the values in `directory_config.py`, which are days_from_now:max_percentage pairs for each warning level
+                - it then returns the max warning level (the worst and most serious warning)
+                - currently, this is:
+                <table><tr><th></th><th>Now + 3 Days</th><th>Now + 7 Days</th></tr>
+                <tr><th>Usage >95%</th><td>Not OK (3)</td><td>Not OK (3)</td></tr>
+                <tr><th>Usage >85%</th><td>Not OK (3)</td><td>Kinda OK (2)</td></tr>
+                <tr><th>Usage >80%</th><td> Kinda OK (2) </td><td> - </td></tr>
+                </table>
+    - For each subdirectory, we'll format the sizes nicely
+    - We're then going to add the information to the `directory` MySQL table, and get back the `directory_id`.
+    - We can use that ID to then add all the specific filetype data to the `file_size` table.
+    - Finally, we can remove any old data - this is data tagged with `.hgi.old`
+- Write everything to a TSV file (`utils/tsv.py`)
 
-### `project_inspector.py`
+**Rank <= Number of Volumes:**
+- these control all the workers per volume
+- read the base directory information
+- find the most recent wrstat file for the volume
+- if the DB already has information for that volume based on that date, it won't go over the file again - it won't learn anything new. will tell all the workers it's done, and return an empty array to the main controller
+- otherwise, iterates over the wrstat file, and sends blocks of 250 records to the workers when they request them
+- when done, send a DONE message to all workers, and wait for their response
+- collate all the reports from the workers (separate workers could easily have worked on the same directory, so sum up, i.e. file sizes)
+- fill in extra information to each report, i.e. group and PI names. Also uses `lfs quota` to get the quota for the group
+- return this to the rank 0 process
 
-- get humgen groups from ldap (`utils.ldap.py`)
-- if a path isn't specified, spin up multiproc Pool workers to collect data on all the humgen directories we care about
-    - firstly, finds the most recent wrstat report for the volume
-    - iterates over every line in the wrstat
-        - if the path doesn't contain a directory we care about, we skip it
-        - if we're in a `users` directory, go one level deeper
-        - if the path matches a path required for a pseudo group, we'll set the group and pi to that of the pseudo group
-        - if we have a directory:
-            - find out the pi and group name
-            - if the directory isn't already in our reports, add it and all its parents
-            - add the PI and gorup to the directory report
-        - else if we have a file:
-            - get the PI and group information
-            - if the directory (file) not in the reports (which it shouldn't be anyway), add it, and all its parent directories
-            - backfill the file sizes, modified times etc.
-            - if the file is one of those defined in the config, also backfill the file size in that category
-        - return the collection of reports
-    - if `tosql` flag set, we're going to write the information to the database (`db/common.py` and `db.inspector.py`)
-        - First, we're going to load the PI/Group/Volume foreign keys into memory
-        - Next, as we're replacing the old data, we're going to tag all the project_names with `.hgi.old.` at the start, instead of deleting it. This'll save us if the additions go wrong
-        - For each DirectoryRecord we have, we're going to format the sizes nicely
-        - We'll add anything to the foreign tables if neccesary
-        - We're then going to add the information to the `directory` MySQL table, and get back the `directory_id`.
-        - We can use that ID to then add all the specific filetype data to the `file_size` table.
-        - Finally, we can remove any old data - this is data tagged with `.hgi.old`
-    - if we're not going to write it to the database, we're going to write it to `stdout` (`utils/table.py`)
+**Other Rank:**
+- these request work from the controller of the associated volume by sending it their rank number
+- when given a block of 250 entries, it'll iterate over each of them
+    - it'll find the appropriate base_directory
+    - if we haven't got information (in this worker process) for the group:base_directory pair, we'll create a `GroupReport` object (`lurge_types/group_report.py`)
+    - we'll update the appropriate `GroupReport` object with some data, i.e. file sizes and last modified times.
+    - it'll find the subdirectory we'll put the information under
+        - if it's a `users` directory, we'll go one level deeper
+    - it'll add the relevant information, i.e. filesize, to the report.
+    - it'll also look to see if it matches a filetype we care about, and adds the information there.
+- when it gets a DONE message, it'll send it back to the controller
 
 ### `puppeteer.py`
 
