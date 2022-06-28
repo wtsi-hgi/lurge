@@ -47,7 +47,7 @@ def read_base_directories(wrstat_dir: Path) -> T.Set[T.Tuple[str, str]]:
     def _mtime(f: str) -> float:
         return os.stat(f).st_mtime
 
-    _base_dir_files = glob.glob(f"{wrstat_dir}*.basedirs")
+    _base_dir_files = glob.glob(f"{wrstat_dir}/*.basedirs")
     _base_dir_files.sort(reverse=True, key=_mtime)
     
     if len(_base_dir_files) == 0:

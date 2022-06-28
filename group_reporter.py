@@ -268,8 +268,21 @@ def reading_wrstat_controller(
 
     pis, groups = names
     logger.debug(f"reading base directory info for volume {volume}")
-    base_directory_info = utils.finder.read_base_directories(
-        Path(WRSTAT_DIR))
+    try:
+        base_directory_info = utils.finder.read_base_directories(
+            Path(WRSTAT_DIR))
+    except FileNotFoundError as err:
+        _logger.exception(err)
+        
+        # we won't be able to continue, so let's tidy up
+        for worker in workers:
+            comm.send({
+                "base_directories": set(),
+                "volume": volume
+            }, dest=worker)
+            comm.send({"msg": "DONE"}, dest=worker)
+        comm.send([], dest=0)
+        raise err
 
     # send important information to the workers
     for worker in workers:
