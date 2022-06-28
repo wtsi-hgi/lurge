@@ -73,7 +73,7 @@ def create_tsv_inspector_report(
     _filetypes = sorted(FILETYPES.keys())
 
     with open(f"{REPORT_DIR}inspector-reports/{date}.tsv", "w", newline="") as rf:
-        writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE)
+        writer = csv.writer(rf, delimiter="\t", quoting=csv.QUOTE_NONE, escapechar="\\")
         writer.writerow([
             "Base Path",
             "Directory",

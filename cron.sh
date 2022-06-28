@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 source /usr/local/lsf/conf/profile.lsf
 
-INSTANCE="prod"
-# INSTANCE="dev"
+# INSTANCE="prod"
+INSTANCE="dev"
 
 export INSTANCE
 

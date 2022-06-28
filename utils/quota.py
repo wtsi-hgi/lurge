@@ -14,6 +14,8 @@ class QuotaReader:
     """
     NOTE: `lurge-gitlab` must be defined in the running user's
     SSH config as pointing to Sanger GitLab, using a valid SSH key
+
+    This is in KiB, so we multiply it by 1024 to get bytes.
     """
 
     def __init__(self, volume: int) -> None:
@@ -31,7 +33,7 @@ class QuotaReader:
         with open(QUOTA_GIT_REPO_LOCATION + f"/scratch{volume}") as quota_file:
             _quota_reader = csv.DictReader(quota_file)
             self.quotas: T.Dict[str, int] = {line["group"]: int(
-                line["limit"]) for line in _quota_reader}
+                line["limit"]) * 1024 for line in _quota_reader}
 
     def get_quota(self, group: str) -> T.Optional[int]:
         # NOTE: this only does the size quota, not the inode quota
