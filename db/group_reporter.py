@@ -32,9 +32,10 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
         # Renaming Old Data
         logger.debug(f"renaming old directory data for deletion later on {scratch_disk}")
         cursor.execute(
-            f"""UPDATE {SCHEMA}.directory SET directory_path = (SELECT CONCAT('.hgi.old.', directory_path))
+            f"""UPDATE {SCHEMA}.directory
                 INNER JOIN base_directory USING (base_directory_id)
                 INNER JOIN volume USING (volume_id)
+                SET directory.directory_path = (SELECT CONCAT('.hgi.old.', directory.directory_path))
                 WHERE scratch_disk = %s;""", (scratch_disk,))
         db_conn.commit()
 
