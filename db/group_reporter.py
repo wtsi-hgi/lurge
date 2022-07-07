@@ -19,20 +19,26 @@ def load_reports_into_db(db_conn: mysql.connector.MySQLConnection,
                          reports: T.List[T.List[GroupReport]], logger: logging.LoggerAdapter[logging.Logger]) -> None:
     cursor: mysql.connector.cursor.MySQLCursor = db_conn.cursor(buffered=True)
 
-    # Renaming Old Data
-    logger.debug("renaming old directory data for deletion later")
-    cursor.execute(
-        f"UPDATE {SCHEMA}.directory SET directory_path = (SELECT CONCAT('.hgi.old.', directory_path));")
-    db_conn.commit()
-
     pis, groups, volumes, _, _, filetypes, base_dirs = db.foreign.get_db_foreign_keys(
         db_conn)
 
     # Add Top Level Reports
     for _vol in reports:
-        for report in _vol:
+        try:
+            scratch_disk: str = f"scratch{_vol[0].volume}"
+        except IndexError:
+            continue
 
-            scratch_disk: str = f"scratch{report.volume}"
+        # Renaming Old Data
+        logger.debug(f"renaming old directory data for deletion later on {scratch_disk}")
+        cursor.execute(
+            f"""UPDATE {SCHEMA}.directory SET directory_path = (SELECT CONCAT('.hgi.old.', directory_path))
+                INNER JOIN base_directory USING (base_directory_id)
+                INNER JOIN volume USING (volume_id)
+                WHERE scratch_disk = %s;""", (scratch_disk,))
+        db_conn.commit()
+
+        for report in _vol:
 
             base_dir = get_mdt_symlink(report.base_path or "")
             # Making sure the PI, Group and Volume all exist in the DB
