@@ -171,7 +171,6 @@ def wrstat_reader_worker(
                 )
 
                 # find the subdirectory for this line
-                # if it's a users directory, we'll go one level deeper
                 _subdir_split = path.replace(base_path, "").split("/")[1:3]
                 if len(_subdir_split) == 0:
                     continue
@@ -181,8 +180,10 @@ def wrstat_reader_worker(
                     else:
                         subdir = "."
                 else:
-                    if _subdir_split[0] == "users":
-                        subdir = f"users/{_subdir_split[1]}"
+                    # if it's a users or projects directory, we'll go one
+                    # level deeper
+                    if _subdir_split[0] in ["users", "projects"]:
+                        subdir = f"{_subdir_split[0]}/{_subdir_split[1]}"
                     else:
                         subdir = _subdir_split[0]
 
