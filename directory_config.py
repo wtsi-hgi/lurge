@@ -1,7 +1,7 @@
 import os
 
 # Global Config
-WRSTAT_DIR = "/nfs/wrstat/output_sb10/"
+WRSTAT_DIR = "/lustre/scratch123/admin/team94/wrstat/output/"
 REPORT_DIR = os.environ["REPORT_DIR"] + "/"
 VOLUMES = [117, 118, 119, 123, 124, 125, 126]
 LOGGING_CONFIG = "/software/hgi/installs/lurge/etc/logging.conf"
